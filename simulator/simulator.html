@@ -510,6 +510,7 @@ function planBehavior(src) {     // src = a placed setup object; returns a NEW s
   const b = BEHAVIOR[src.type];
   const jitter = 1 + (Math.random() * 2 - 1) * SPEED_JITTER;
   const o = { id: src.id, type: src.type, x_m: src.x_m, y_m: src.y_m,
+              x0: src.x_m, y0: src.y_m,   // setup position, for the minimap trail
               mode: "parked", cruise: 0, speed: 0, targetX: src.x_m, finished: false,
               walked: 0,          // meters walked, only drives the leg animation
               vis: {} };          // view name -> bool, rewritten by every rendered frame
@@ -869,6 +870,105 @@ function drawMirrorGlass(c, m) {     // our car's flank, dark tint, thin inner b
   c.lineWidth = 1; c.strokeStyle = "rgba(255,255,255,.35)"; c.strokeRect(g.x + 0.5, g.y + 0.5, g.w - 1, g.h - 1);
 }
 
+// ------------------------------ MINIMAP ----------------------------------------------
+// Top-down overview in the top-right corner, drawn in the same style as the setup screen.
+// Shows every object's setup position (faded icon) and a dashed trail to where it is now.
+// Display only: it is NOT part of the cockpit occlusion mask, so it never affects visible_in.
+const MINIMAP = {
+  margin: 12,          // gap to the screen edge, px
+  heightFrac: 0.48,    // map height as a fraction of the screen height (stays above the right mirror)
+  halfWidthM: 8,       // lateral meters shown on each side of ego (road is +-5.25 m, rest is grass)
+  extraAheadM: 15,     // extra meters shown ahead, beyond what the setup screen showed
+};
+
+// Setup SVG icons as images for canvas drawing (needs xmlns + explicit size to rasterize everywhere).
+const iconImgs = {};
+function iconImage(key, type, color) {
+  if (!iconImgs[key]) {
+    const svg = svgFor(type, color);
+    const vb = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+      svg.replace("<svg ", `<svg xmlns="http://www.w3.org/2000/svg" width="${vb[1] * 3}" height="${vb[2] * 3}" `));
+    iconImgs[key] = img;
+  }
+  return iconImgs[key];
+}
+for (const t of Object.keys(TYPES)) iconImage(t, t, TYPES[t].color);   // preload
+iconImage("ego", "car", EGO_COLOR);
+
+function miniLayout(W, H) {
+  // Vertical range: everything the setup screen could show, plus extraAheadM ahead.
+  const yBehind = H / 2 / PIXELS_PER_METER + 1, yAhead = yBehind + MINIMAP.extraAheadM;
+  const h = H * MINIMAP.heightFrac, scale = h / (yAhead + yBehind), w = 2 * MINIMAP.halfWidthM * scale;
+  return { x: W - MINIMAP.margin - w, y: MINIMAP.margin, w, h, scale, yAhead };
+}
+
+function drawMinimap(c) {
+  const m = VW.mini, s = m.scale;
+  const toMap = (x_m, y_m) => ({ x: m.x + m.w / 2 + x_m * s, y: m.y + (m.yAhead - y_m) * s });
+  const icon = (img, x_m, y_m, w_m, l_m, alpha) => {
+    if (!img.complete) return;
+    const p = toMap(x_m, y_m), w = Math.max(w_m * s, 7), h = Math.max(l_m * s, 7);
+    c.globalAlpha = alpha; c.drawImage(img, p.x - w / 2, p.y - h / 2, w, h); c.globalAlpha = 1;
+  };
+
+  c.save();
+  rr(c, m.x - 4, m.y - 4, m.w + 8, m.h + 8, 9);                      // frame
+  c.fillStyle = "#12141a"; c.fill(); c.lineWidth = 2; c.strokeStyle = "#5b6275"; c.stroke();
+  c.beginPath(); c.rect(m.x, m.y, m.w, m.h); c.clip();
+
+  // Grass + tufts, road, edge lines, dashed lane lines (same colors/proportions as setup)
+  c.fillStyle = "#25552b"; c.fillRect(m.x, m.y, m.w, m.h);
+  const roadL = toMap(-ROAD_HALF_M, 0).x, roadW = 2 * ROAD_HALF_M * s, grassW = (m.w - roadW) / 2;
+  c.fillStyle = "rgba(47,107,54,.8)";
+  for (let i = 0; i < 12; i++) {
+    const fx = (i * 0.37 + 0.11) % 1, fy = (i * 0.61 + 0.05) % 1;
+    const tx = fx < 0.5 ? m.x + 2 + fx * 2 * (grassW - 10) : roadL + roadW + 4 + (fx - 0.5) * 2 * (grassW - 10);
+    c.beginPath(); c.ellipse(tx + 3, m.y + fy * m.h, 3.5, 3, 0, Math.PI, 2 * Math.PI); c.fill();
+  }
+  c.fillStyle = "#2a2d33"; c.fillRect(roadL, m.y, roadW, m.h);
+  const edge = Math.max(1.5, (5 / PIXELS_PER_METER) * s);
+  c.fillStyle = "#fff";
+  c.fillRect(roadL - edge, m.y, edge, m.h); c.fillRect(roadL + roadW, m.y, edge, m.h);
+  const dash = (40 / PIXELS_PER_METER) * s;
+  c.strokeStyle = "#fff"; c.lineWidth = Math.max(1, (4 / PIXELS_PER_METER) * s); c.setLineDash([dash, dash]);
+  for (const lx of [-LANE_WIDTH_M / 2, LANE_WIDTH_M / 2]) line(c, toMap(lx, 0).x, m.y, toMap(lx, 0).x, m.y + m.h);
+
+  // Trails: dashed line from each object's setup position to its current position
+  c.setLineDash([4, 3]); c.lineWidth = 2;
+  for (const o of sim.objs) {
+    if (Math.hypot(o.x_m - o.x0, o.y_m - o.y0) < 0.3) continue;
+    const a = toMap(o.x0, o.y0), b = toMap(o.x_m, o.y_m);
+    c.strokeStyle = TYPES[o.type].color; c.globalAlpha = 0.8; line(c, a.x, a.y, b.x, b.y); c.globalAlpha = 1;
+  }
+  c.setLineDash([]);
+
+  // Faded icons at setup positions, then ego (with ring), then objects at their current positions
+  for (const o of sim.objs) {
+    if (Math.hypot(o.x_m - o.x0, o.y_m - o.y0) >= 0.3) icon(iconImgs[o.type], o.x0, o.y0, TYPES[o.type].w, TYPES[o.type].l, 0.3);
+  }
+  const e = toMap(0, 0), ew = EGO_SIZE.w * s + 6, eh = EGO_SIZE.l * s + 6;
+  rr(c, e.x - ew / 2, e.y - eh / 2, ew, eh, 4); c.lineWidth = 2; c.strokeStyle = "#ffd54a"; c.stroke();
+  icon(iconImgs.ego, 0, 0, EGO_SIZE.w, EGO_SIZE.l, 1);
+  for (const o of sim.objs) icon(iconImgs[o.type], o.x_m, o.y_m, TYPES[o.type].w, TYPES[o.type].l, 1);
+
+  // Objects beyond the map edge: small arrow at the edge + distance
+  c.font = "bold 10px system-ui, 'Segoe UI', Arial, sans-serif"; c.textAlign = "center";
+  for (const o of sim.objs) {
+    const p = toMap(o.x_m, o.y_m), ahead = p.y < m.y, behind = p.y > m.y + m.h;
+    if (!ahead && !behind) continue;
+    const ay = ahead ? m.y + 2 : m.y + m.h - 2, dir = ahead ? 1 : -1;
+    c.fillStyle = TYPES[o.type].color;
+    c.beginPath(); c.moveTo(p.x, ay); c.lineTo(p.x - 6, ay + dir * 9); c.lineTo(p.x + 6, ay + dir * 9); c.closePath(); c.fill();
+    c.textBaseline = ahead ? "top" : "bottom";
+    c.lineWidth = 3; c.strokeStyle = "rgba(0,0,0,.85)";
+    const txt = Math.round(Math.abs(o.y_m)) + " m";
+    c.strokeText(txt, p.x, ay + dir * 11); c.fillStyle = "#fff"; c.fillText(txt, p.x, ay + dir * 11);
+  }
+  c.restore();
+}
+
 // ------------------------------ VIEW GEOMETRY & VISIBILITY ---------------------------
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
@@ -891,7 +991,7 @@ function resizeView() {
       glass: g, bodyW,
       clip: { x: g.body < 0 ? g.x + bodyW : g.x, y: g.y, w: g.w - bodyW, h: g.h } };  // glass minus our flank
   });
-  VW = { W, H, main, mirrors, mask: buildMask(W, H, mirrors) };
+  VW = { W, H, main, mirrors, mask: buildMask(W, H, mirrors), mini: miniLayout(W, H) };
 }
 
 // Occlusion mask for the windshield: the cockpit and the mirror housings drawn once, opaque, into an
@@ -934,6 +1034,7 @@ function render() {
     ctx.restore();
     drawMirrorGlass(ctx, m);
   }
+  drawMinimap(ctx);                                           // 4. top-down overview, top-right corner
 }
 
 // ------------------------------ SIMULATION FLOW --------------------------------------
