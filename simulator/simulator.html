@@ -493,10 +493,10 @@ document.getElementById("clear").addEventListener("click", () => {
 //        laterally (constant y_m) to the grass on the far side. FINISHED there (reason "crossed"),
 //        then stands still.
 const BEHAVIOR = {
-  car:        { kind: "vehicle",    speed_mps: 12 },
-  motorcycle: { kind: "vehicle",    speed_mps: 16 },
-  truck:      { kind: "vehicle",    speed_mps: 9 },
-  bicycle:    { kind: "vehicle",    speed_mps: 5 },
+  car:        { kind: "vehicle",    speed_mps: 5 },
+  motorcycle: { kind: "vehicle",    speed_mps: 5 },
+  truck:      { kind: "vehicle",    speed_mps: 3.5 },
+  bicycle:    { kind: "vehicle",    speed_mps: 2 },
   pedestrian: { kind: "pedestrian", speed_mps: 1.4 },
 };
 const SPEED_JITTER = 0.10;        // each object gets speed * (1 +- up to 10%), re-rolled every run
@@ -553,10 +553,12 @@ const NEAR_GROUND_M = 0.3;                  // near clipping plane for road poly
 // Mirror cameras sit at the mirror glass and look BACKWARD (see toCam for the axis handling).
 // aimDeg angles a side mirror outward so the left mirror mostly shows the left lane behind us.
 const MIRROR_CAMS = {
-  mirror_center: { x: 0.0,   y: 0.5, z: 1.3, fovDeg: 40, aimDeg: 0 },
-  mirror_left:   { x: -0.95, y: 0.7, z: 1.0, fovDeg: 30, aimDeg: -12 },
-  mirror_right:  { x: 0.95,  y: 0.7, z: 1.0, fovDeg: 30, aimDeg: 12 },
+  mirror_center: { x: 0.0,   y: 0.5, z: 1.3, fovDeg: 70, aimDeg: 0 },
+  mirror_left:   { x: -0.95, y: 0.7, z: 1.0, fovDeg: 60, aimDeg: -12 },
+  mirror_right:  { x: 0.95,  y: 0.7, z: 1.0, fovDeg: 60, aimDeg: 12 },
 };
+// Text shown above objects in the first-person views (display only; events still use the real type)
+const LABEL_NAME = { car: "car", truck: "truck", bicycle: "bike", motorcycle: "motorbike", pedestrian: "pedestrian" };
 const VIEW_NAMES = ["windshield", "mirror_center", "mirror_left", "mirror_right"];
 const VIEW_ABBR = { windshield: "W", mirror_center: "C", mirror_left: "L", mirror_right: "R" };
 
@@ -805,7 +807,7 @@ function drawWorld(c, v, objs) {
     // tested against what is really open glass for this view.
     const box = { x: p.sx - pw / 2, y: p.sy - ph, w: pw, h: ph };
     o.vis[v.name] = v.back ? rectsOverlap(box, v.clip) : windshieldSees(box);
-    if (ph > 22) drawLabel(c, o.id, p.sx, p.sy - ph, v.back ? 11 : 16);
+    if (ph > 22) drawLabel(c, LABEL_NAME[o.type] || o.type, p.sx, p.sy - ph, v.back ? 11 : 16);
   }
 }
 
