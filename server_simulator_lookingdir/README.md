@@ -1,11 +1,12 @@
 # Simulator server
 
 WebSocket server with two clients on one port: the driving simulator and the driver camera client.
-It reads what both send and tells the simulator which region the driver is looking at. For now the
-region is a mock: once per second the server sends a random one of the 9 regions.
+It reads what both send and tells the simulator which region the driver is looking at: the camera
+client's gaze zone, translated to the simulator's regions, 10 times per second.
 
-Files: `sim.py` parses the simulator's messages, `camera.py` parses the camera client's messages,
-`server.py` routes each message to one of them and sends the answer. A malformed message is logged
+Files: `sim.py` parses the simulator's messages, `camera.py` parses the camera client's messages
+(and maps its gaze zone to a region), `server.py` routes each message to one of them and sends the
+answer. Tests: `python -m unittest -v`. A malformed message is logged
 as a warning and ignored; the connection stays open.
 
 ## Input 1: simulator
@@ -30,7 +31,7 @@ the rest is ignored. Any field may be missing or null (= no data, not an error).
 
 ```json
 {"type": "driver_state", "t": 990.21,
- "gaze": {"yaw_deg": -24.3, "pitch_deg": -7.9},
+ "gaze": {"yaw_deg": -24.3, "pitch_deg": -7.9, "zone": "LEFT_MIRROR"},
  "eyes": {"state": "OPEN"}, "quality": {"face_detected": true},
  "calibration": {"status": "DONE"}}
 ```
@@ -39,13 +40,14 @@ the rest is ignored. Any field may be missing or null (= no data, not an error).
 |---|---|
 | `gaze.yaw_deg` | 0 = straight ahead, negative = left, positive = right |
 | `gaze.pitch_deg` | 0 = straight, positive = up, negative = down |
+| `gaze.zone` | `ROAD`, `REAR_MIRROR`, `LEFT_MIRROR`, `RIGHT_MIRROR`, `LEFT_SIDE`, `RIGHT_SIDE`, `UP`, `DOWN`, `UNKNOWN` |
 | `eyes.state` | `OPEN`, `ALMOST_CLOSED`, `CLOSED`, `UNKNOWN` |
 | `quality.face_detected` | `false` = no face in the camera |
 | `calibration.status` | `CALIBRATING`, `DONE`, `DEFAULTS` |
 
 ## Output: to the simulator
 
-Once per second, to every client that is not the camera client:
+`GAZE_HZ` (default 10) times per second, to every client that is not the camera client:
 
 ```json
 {"event": "gaze_update", "timestamp": 1763640012.345, "status": "ok", "region": "mirror_left"}
@@ -56,23 +58,35 @@ Once per second, to every client that is not the camera client:
 `front_left`, `front_center`, `front_right`, `side_left`, `side_right`, `mirror_center`,
 `mirror_left`, `mirror_right`, `away` (looking at none of the others).
 
-The status comes from the camera client's `driver_state` (no face, eyes closed, calibrating). While
-no camera client has reported, the server sends `ok` with a random (mock) region. `no_gaze_client`
-is part of the format but not sent yet. The simulator shows "No gaze data" by itself when no
-`gaze_update` arrives for 1.5 s.
+How it is decided from the latest `driver_state`, first match wins:
+
+| Camera client says | `status` | `region` |
+|---|---|---|
+| nothing yet, or nothing for `CAMERA_TIMEOUT_S` (1 s) | `no_gaze_client` | `null` |
+| `quality.face_detected: false` | `no_face` | `null` |
+| `eyes.state: CLOSED` | `eyes_closed` | `null` |
+| `calibration.status: CALIBRATING` | `calibrating` | `null` |
+| `gaze.zone: ROAD`, `gaze.yaw_deg` < -`FRONT_SPLIT_DEG` (7) / within / > +7 | `ok` | `front_left` / `front_center` / `front_right` |
+| `gaze.zone: LEFT_MIRROR` / `REAR_MIRROR` / `RIGHT_MIRROR` | `ok` | `mirror_left` / `mirror_center` / `mirror_right` |
+| `gaze.zone: LEFT_SIDE` / `RIGHT_SIDE` | `ok` | `side_left` / `side_right` |
+| `gaze.zone: UP`, `DOWN`, `UNKNOWN` or missing | `ok` | `away` |
+
+Where the mirrors and the road are (in gaze angles) is set in the camera client, `gaze_zones` and
+`gaze.on_road_*` in `driver_monitor/config/driver_monitor.yaml`; its window overlay shows the live
+angles and zone. The simulator shows "No gaze data" by itself when no `gaze_update` arrives for 1.5 s.
 
 ## Console output
 
-Every simulator message and every `gaze_update` is printed exactly as received/sent, one JSON per
-line, so the two directions can be read side by side:
+Every simulator message, and every `gaze_update` whose status or region changed, is printed exactly
+as received/sent, one JSON per line, so the two directions can be read side by side:
 
 ```
 11:06:40 INFO    RECEIVED {"event":"simulation_tick","timestamp":1763640012.1,"objects":[]}
 11:06:40 INFO    SENT {"event": "gaze_update", "timestamp": 1763640012.345, "status": "ok", "region": "mirror_left"}
 ```
 
-`SENT` is printed only when at least one simulator is connected. Camera messages (~30 Hz) are
-printed only with `LOG_LEVEL=DEBUG`. The browser console of the simulator shows the same pairs
+`SENT` is printed only when at least one simulator is connected. Unchanged `gaze_update`s (10 Hz)
+and camera messages (~30 Hz) are printed only with `LOG_LEVEL=DEBUG`. The browser console of the simulator shows the same pairs
 (its own messages, plus `RECEIVED` for each `gaze_update`).
 
 ## Run
@@ -93,4 +107,9 @@ on `0.0.0.0:8765`; the host port is `SERVER_PORT` in the root `.env`.
 |---|---|---|
 | `HOST` | `localhost` | Interface to listen on. Use `0.0.0.0` in Docker. |
 | `PORT` | `8765` | Port. The simulator's `WS_URL` must match. |
-| `LOG_LEVEL` | `INFO` | `DEBUG` also prints every camera message. |
+| `LOG_LEVEL` | `INFO` | `DEBUG` also prints every `gaze_update` and every camera message. |
+| `GAZE_HZ` | `10` | `gaze_update` messages per second. |
+| `CAMERA_TIMEOUT_S` | `1.0` | No `driver_state` for this long: `no_gaze_client`. |
+| `FRONT_SPLIT_DEG` | `7` | Looking at the road, \|yaw\| beyond this: `front_left` / `front_right`. |
+
+In Docker these come from the root `.env`.

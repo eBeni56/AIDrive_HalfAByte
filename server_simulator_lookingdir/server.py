@@ -5,17 +5,18 @@ simulator where the driver is looking.
   camera.py  parses the camera client's messages  ("type": "driver_state")
   server.py  routes each message to one of them and sends gaze_update to the simulator
 
-For now the gaze region is MOCKED: a random one of the 9 regions, once per second.
+The gaze region comes from the camera client's gaze.zone (camera.region()); without a camera client
+(or when it has sent nothing for CAMERA_TIMEOUT_S) the status is "no_gaze_client".
 
 Environment variables: HOST (default localhost; 0.0.0.0 in Docker), PORT (default 8765),
-LOG_LEVEL (INFO prints every simulator message and every gaze_update sent; DEBUG also prints
-every camera message).
+GAZE_HZ (gaze_update rate, default 10), CAMERA_TIMEOUT_S (default 1.0), FRONT_SPLIT_DEG (default 7),
+LOG_LEVEL (INFO prints every simulator message and every CHANGE of the gaze_update sent; DEBUG also
+prints every gaze_update and every camera message).
 """
 import asyncio
 import json
 import logging
 import os
-import random
 import time
 
 from websockets.asyncio.server import ServerConnection, serve
@@ -26,10 +27,9 @@ import sim
 
 HOST = os.environ.get("HOST", "localhost")
 PORT = int(os.environ.get("PORT", "8765"))
-SEND_INTERVAL_S = 1.0   # how often the (mock) gaze_update is sent
-
-REGIONS = ["front_left", "front_center", "front_right", "side_left", "side_right",
-           "mirror_center", "mirror_left", "mirror_right", "away"]
+GAZE_HZ = float(os.environ.get("GAZE_HZ", "10"))                    # gaze_update messages per second
+CAMERA_TIMEOUT_S = float(os.environ.get("CAMERA_TIMEOUT_S", "1.0"))  # older camera data = no camera
+FRONT_SPLIT_DEG = float(os.environ.get("FRONT_SPLIT_DEG", "7"))      # |yaw| beyond this: front_left/right
 
 log = logging.getLogger("server")
 clients = {}   # ws -> "simulator" | "camera" | None (not known yet)
@@ -79,25 +79,28 @@ async def handler(ws: ServerConnection):
         log.info("%s disconnected", role)
 
 
-def decide_gaze():
-    """Returns (status, region). MOCK region: random. Status comes from the camera client when
-    it has reported; region is None unless status is "ok"."""
+def decide_gaze(now=None):
+    """Returns (status, region). region is None unless status is "ok"."""
     d = camera.driver
-    if d.received_at is not None:
-        if d.face_detected is False:
-            return "no_face", None
-        if d.eyes == "CLOSED":
-            return "eyes_closed", None
-        if d.calibration == "CALIBRATING":
-            return "calibrating", None
-    return "ok", random.choice(REGIONS)
+    now = time.monotonic() if now is None else now
+    if d.received_at is None or now - d.received_at > CAMERA_TIMEOUT_S:
+        return "no_gaze_client", None
+    if d.face_detected is False:
+        return "no_face", None
+    if d.eyes == "CLOSED":
+        return "eyes_closed", None
+    if d.calibration == "CALIBRATING":
+        return "calibrating", None
+    return "ok", camera.region(d.zone, d.yaw_deg, FRONT_SPLIT_DEG)
 
 
 async def send_gaze_loop():
-    """Send gaze_update to every client that is not the camera. The simulator sends
-    nothing before GO, so it can't be recognised earlier; it gets the message anyway."""
+    """Send gaze_update GAZE_HZ times per second to every client that is not the camera. The
+    simulator sends nothing before GO, so it can't be recognised earlier; it gets the message anyway.
+    Only changes are logged at INFO (at 10 Hz every message would flood the console)."""
+    last = None
     while True:
-        await asyncio.sleep(SEND_INTERVAL_S)
+        await asyncio.sleep(1.0 / GAZE_HZ)
         status, region = decide_gaze()
         text = json.dumps({"event": "gaze_update", "timestamp": time.time(),
                            "status": status, "region": region})
@@ -110,12 +113,18 @@ async def send_gaze_loop():
                 except Exception:   # a failed send must never break the server
                     pass
         if sent:                    # nothing is logged while no simulator is connected
-            log.info("SENT %s", text)
+            if (status, region) != last:
+                log.info("SENT %s", text)
+            else:
+                log.debug("SENT %s", text)
+            last = (status, region)
+        else:
+            last = None
 
 
 async def main():
     async with serve(handler, HOST, PORT):
-        log.info("listening on ws://%s:%d", HOST, PORT)
+        log.info("listening on ws://%s:%d (gaze_update %g Hz)", HOST, PORT, GAZE_HZ)
         await send_gaze_loop()   # runs until Ctrl+C
 
 

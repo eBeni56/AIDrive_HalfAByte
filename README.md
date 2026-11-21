@@ -11,17 +11,20 @@ docker compose up --build
 
 | Service | What it does | Address on this PC |
 |---|---|---|
-| `server` | `server_simulator_lookingdir/`: receives the simulator and the driver monitor, sends `gaze_update` to the simulator | `ws://localhost:8765` |
+| `server` | `server_simulator_lookingdir/`: receives the simulator and the driver monitor, sends `gaze_update` (the driver monitor's gaze zone as a simulator region, 10 Hz) to the simulator | `ws://localhost:8765` |
 | `simulator` | `simulator/` served by nginx; its WebSocket goes to `/ws`, which nginx passes to `server` | <http://localhost:8080> |
 | `model-download` | One-shot: downloads the MediaPipe model into `driver_monitor/models/` if it is missing, then exits | - |
 | `driver-monitor` | Starts after `model-download` finished successfully. Replays a recorded video in real time and streams `driver_state` to `server`; exits at the end of the video | - |
 
 Open <http://localhost:8080> in the browser, place objects and press **Start simulation**. The `server` log
-shows the simulator messages and every `gaze_update` it sends; the `driver-monitor` log shows its detections.
+shows the simulator messages and every change of the `gaze_update` it sends; the `driver-monitor` log shows its
+detections. The highlighted region in the simulator follows the replayed video's driver; "No camera connected"
+means no `driver_state` arrived in the last second (the driver monitor is still starting, or the video ended).
 `docker compose down` stops everything.
 
 **Settings** are in [.env](.env): the host ports (`SERVER_PORT`, `SIMULATOR_PORT`), the replayed video
-(`DM_VIDEO`, a file in `driver_monitor/recordings/`) and the server log level. Inside the compose network the
+(`DM_VIDEO`, a file in `driver_monitor/recordings/`), the server log level and the gaze settings (`GAZE_HZ`,
+`CAMERA_TIMEOUT_S`, `FRONT_SPLIT_DEG`, see [the server README](server_simulator_lookingdir/README.md#output-to-the-simulator)). Inside the compose network the
 services always use `server:8765`; the driver monitor gets that address from
 [driver_monitor/config/driver_monitor.docker.yaml](driver_monitor/config/driver_monitor.docker.yaml).
 
@@ -39,3 +42,7 @@ docker compose up --build server simulator
 cd driver_monitor
 uv run python -m driver_monitor
 ```
+
+Look straight ahead until calibration is done (the simulator badge says "Camera calibrating" meanwhile), then the
+highlight follows your eyes. If a mirror highlights in the wrong place, look at it and read the gaze angles in the
+driver monitor window, then adjust `gaze_zones` in `driver_monitor/config/driver_monitor.yaml`.
