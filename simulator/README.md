@@ -31,7 +31,7 @@ python -m venv .venv
 - `js/gaze.js`: receives `gaze_update`; status badge, region geometry, highlight drawing
 - `js/ws.js`: WebSocket client; prints every outgoing message to the browser console
 - `js/setup.js`: setup screen: icons, placing/dragging objects (sends nothing)
-- `js/render.js`: first-person view, mirrors, minimap, visibility detection
+- `js/render.js`: first-person view, mirrors, minimap, visibility detection. While driving, the first-person view fills the left ~70% of the window and the minimap is a full-height panel on the right (its own canvas; width = `MINIMAP.widthFrac`)
 - `js/sim.js`: movement, simulation flow, all outgoing messages; runs on page load
 - `test_server.py`: test server that prints every message (port from env var `PORT`, default 8765)
 - `requirements.txt`, `run.bat`, `run.sh`: setup and start

@@ -51,11 +51,16 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1b3a1f;
 #start:hover:not(:disabled) { background: #1f8a3c; }
 #start:disabled { border-color: #555; background: #2a2d33; color: #777; cursor: not-allowed; }
 
-#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: none; background: #000; }
-body.sim #view { display: block; }
+/* Driving view: the first-person canvas fills the left part, the minimap is a full-height panel on
+   the right. --mini-w (the panel width) is set from JS in resizeView(). */
+:root { --mini-w: 0px; }
+#view { position: fixed; left: 0; top: 0; display: none; background: #000; }
+#minimap { position: fixed; right: 0; top: 0; display: none; background: #12141a;
+  border-left: 3px solid #5b6275; }
+body.sim #view, body.sim #minimap { display: block; }
 body.sim #scene, body.sim #toolbar, body.sim #hint { display: none; }
 
-#countdown { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center;
+#countdown { position: fixed; inset: 0 var(--mini-w) 0 0; z-index: 80; display: none; align-items: center; justify-content: center;
   pointer-events: none; font-size: 30vh; font-weight: 900; color: #fff;
   text-shadow: 0 0 40px rgba(0,0,0,.9), 0 8px 0 #000; }
 #countdown.show { display: flex; }
@@ -67,16 +72,16 @@ body.sim #scene, body.sim #toolbar, body.sim #hint { display: none; }
 body.sim #abort { display: block; }
 
 /* Gaze badge: bottom-right, above the setup toolbar; in the driving view it sits at the bottom
-   (the minimap is top-right, the abort button bottom-left). Visible in both. */
+   (the minimap panel is on the right, the abort button bottom-left). Visible in both. */
 #gaze-badge { position: fixed; right: 12px; bottom: 152px; z-index: 95; max-width: 340px;
   padding: 8px 12px; border-radius: 10px; border: 2px solid #8a8f9c; background: rgba(12,14,18,.85);
   pointer-events: none; }
-body.sim #gaze-badge { bottom: 12px; }
+body.sim #gaze-badge { bottom: 12px; right: calc(var(--mini-w) + 12px); }
 #gaze-badge .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;
   background: #8a8f9c; vertical-align: -1px; }
 #gaze-badge b { font-size: 17px; }
 
-#done { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center;
+#done { position: fixed; inset: 0 var(--mini-w) 0 0; z-index: 90; display: none; align-items: center; justify-content: center;
   background: rgba(0,0,0,.45); }
 #done.show { display: flex; }
 #done .box { background: #12141a; border: 3px solid #4cff7a; border-radius: 16px; padding: 28px 44px; text-align: center; }

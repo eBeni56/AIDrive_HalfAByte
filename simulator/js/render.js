@@ -349,14 +349,15 @@ function drawMirrorGlass(c, m) {     // our car's flank, dark tint, thin inner b
 }
 
 // ------------------------------ MINIMAP ----------------------------------------------
-// Top-down overview in the top-right corner, drawn in the same style as the setup screen.
+// Top-down overview in its own full-height panel on the right (separate canvas), drawn in the same
+// style as the setup screen.
 // Shows every object's setup position (faded icon) and a dashed trail to where it is now.
 // Display only: it is NOT part of the cockpit occlusion mask, so it never affects visibility.
 const MINIMAP = {
-  margin: 12,          // gap to the screen edge, px
-  heightFrac: 0.48,    // map height as a fraction of the screen height (stays above the right mirror)
+  widthFrac: 0.30,     // panel width as a fraction of the window width (the driving view gets the rest)
+  margin: 6,           // gap between the panel edge and the map, px
   halfWidthM: 8,       // lateral meters shown on each side of ego (road is +-5.25 m, rest is grass)
-  extraAheadM: 15,     // extra meters shown ahead, beyond what the setup screen showed
+  egoFrac: 0.62,       // ego's vertical position in the panel, from the top (more room ahead than behind)
 };
 
 // Setup SVG icons as images for canvas drawing (needs xmlns + explicit size to rasterize everywhere).
@@ -375,11 +376,11 @@ function iconImage(key, type, color) {
 for (const t of Object.keys(TYPES)) iconImage(t, t, TYPES[t].color);   // preload
 iconImage("ego", "car", EGO_COLOR);
 
-function miniLayout(W, H) {
-  // Vertical range: everything the setup screen could show, plus extraAheadM ahead.
-  const yBehind = H / 2 / PIXELS_PER_METER + 1, yAhead = yBehind + MINIMAP.extraAheadM;
-  const h = H * MINIMAP.heightFrac, scale = h / (yAhead + yBehind), w = 2 * MINIMAP.halfWidthM * scale;
-  return { x: W - MINIMAP.margin - w, y: MINIMAP.margin, w, h, scale, yAhead };
+function miniLayout(PW, H) {
+  // The map fills the panel. Scale from the width (+-halfWidthM); the height shows as much as fits.
+  const x = MINIMAP.margin, y = MINIMAP.margin, w = PW - 2 * x, h = H - 2 * y;
+  const scale = w / (2 * MINIMAP.halfWidthM);
+  return { x, y, w, h, scale, yAhead: (h / scale) * MINIMAP.egoFrac };
 }
 
 function drawMinimap(c) {
@@ -450,14 +451,22 @@ function drawMinimap(c) {
 // ------------------------------ VIEW GEOMETRY & VISIBILITY ---------------------------
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
-let VW = null;   // { W, H, main, mirrors, mask }, rebuilt on resize
+let VW = null;   // { W, H, PW, main, mirrors, mask, mini }, rebuilt on resize. W x H = driving view, PW = minimap panel width
+const miniCanvas = document.getElementById("minimap");
+const mctx = miniCanvas.getContext("2d");
 
 function rad(d) { return (d * Math.PI) / 180; }
 
 function resizeView() {
-  const W = window.innerWidth, H = window.innerHeight, dpr = window.devicePixelRatio || 1;
+  const H = window.innerHeight, dpr = window.devicePixelRatio || 1;
+  const PW = Math.round(window.innerWidth * MINIMAP.widthFrac), W = window.innerWidth - PW;
+  document.documentElement.style.setProperty("--mini-w", PW + "px");
+  canvas.style.width = W + "px"; canvas.style.height = H + "px";
   canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);                     // draw in CSS pixels
+  miniCanvas.style.width = PW + "px"; miniCanvas.style.height = H + "px";
+  miniCanvas.width = Math.round(PW * dpr); miniCanvas.height = Math.round(H * dpr);
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const main = { name: "windshield", camX: EYE.x, camY: EYE.y, camZ: EYE.z, back: false, aim: 0,
     focal: (W / 2) / Math.tan(rad(FOV_DEG) / 2), cx: W / 2, horizonY: H * HORIZON_FRAC,
     clip: { x: 0, y: 0, w: W, h: H } };
@@ -469,7 +478,7 @@ function resizeView() {
       glass: g, bodyW,
       clip: { x: g.body < 0 ? g.x + bodyW : g.x, y: g.y, w: g.w - bodyW, h: g.h } };  // glass minus our flank
   });
-  VW = { W, H, main, mirrors, mask: buildMask(W, H, mirrors), mini: miniLayout(W, H) };
+  VW = { W, H, PW, main, mirrors, mask: buildMask(W, H, mirrors), mini: miniLayout(PW, H) };
 }
 
 // Occlusion mask for the windshield: the cockpit and the mirror housings drawn once, opaque, into an
@@ -512,6 +521,7 @@ function render() {
     ctx.restore();
     drawMirrorGlass(ctx, m);
   }
-  drawMinimap(ctx);                                           // 4. top-down overview, top-right corner
-  drawGaze(ctx, W, H);                                        // 5. gaze highlight, always the last layer
+  drawGaze(ctx, W, H);                                        // 4. gaze highlight, always the last layer
+  mctx.clearRect(0, 0, VW.PW, H);
+  drawMinimap(mctx);                                          // minimap panel (own canvas, right)
 }
