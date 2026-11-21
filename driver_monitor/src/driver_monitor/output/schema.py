@@ -1,7 +1,8 @@
 """The `driver_state` message (schema_version 1). Source of truth for the JSON format.
 
 Export the JSON Schema with:  uv run python -m driver_monitor --print-schema
-Human-readable description and examples: docs/detection-schema.md
+Field-by-field reference and examples: docs/detection-schema.md; machine-readable: docs/driver_state.schema.json
+(a test keeps it equal to this model).
 """
 
 from __future__ import annotations

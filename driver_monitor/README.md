@@ -5,6 +5,8 @@ MediaPipe Face Landmarker and reports eye closure, microsleep, drowsiness, yawns
 and distraction as a stateful JSON message (`driver_state`) for every frame.
 
 - What it detects, how, which classes/files, the JSON format and many examples: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
+- The `driver_state` JSON field by field (for the simulator / consumers): [docs/detection-schema.md](docs/detection-schema.md),
+  machine-readable JSON Schema: [docs/driver_state.schema.json](docs/driver_state.schema.json)
 - Scripted scenarios without a camera: `uv run python tools/scenarios.py --list`
 
 ## Quick start (Windows)
