@@ -100,6 +100,9 @@ sends from its own thread, so the camera loop never waits for the network:
 * while disconnected nothing is buffered (the receiver wants the live state, not a backlog); if sending is
   slower than the camera, the oldest queued messages are dropped (`queue_size` 30);
 * `max_rate_hz` limits the rate (0 = every processed frame, ~30/s);
+* messages the server sends back (the simulator server sends `gaze_update` to clients it has not identified
+  yet) are read and dropped — unread, they fill the client's receive buffer, the server's pongs are no longer
+  read and the link closes with "keepalive ping timeout";
 * on exit it prints how many messages were sent and dropped.
 
 To watch the stream without the simulator: `uv run python tools/ws_receiver.py` (prints one summary line per

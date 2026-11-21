@@ -93,6 +93,7 @@ class WebSocketSender:
         self._events.put(f"WebSocket: connected to {self.url}, streaming driver_state messages")
         try:
             while not self._stop.is_set():
+                _discard_incoming(ws)
                 try:
                     msg = self._queue.get(timeout=0.25)
                 except queue.Empty:
@@ -103,6 +104,17 @@ class WebSocketSender:
             self._events.put(f"WebSocket: connection to {self.url} lost ({_short(e)}) - reconnecting")
         finally:
             self.connected = False
+
+
+def _discard_incoming(ws: ClientConnection) -> None:
+    """Read and drop whatever the server sent (the server may send to every client, e.g. gaze_update).
+    Unread messages fill the client's receive buffer; it then stops reading the socket, the server's pongs
+    are missed and the connection closes with "keepalive ping timeout"."""
+    while True:
+        try:
+            ws.recv(timeout=0)
+        except TimeoutError:
+            return
 
 
 def _short(e: Exception) -> str:

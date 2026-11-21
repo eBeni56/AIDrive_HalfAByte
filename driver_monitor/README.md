@@ -44,6 +44,9 @@ uv run python -m driver_monitor --dump-config          # print all settings with
 uv run python -m driver_monitor --print-schema         # print the JSON Schema of driver_state
 ```
 
+To run it together with the simulator and the server (Docker Compose, or the live camera on the host against the
+server in Docker), see the [repository README](../README.md#run-everything-together-docker).
+
 Keys in the camera window: `q`/`Esc` quit · `c` recalibrate · `j` print the full JSON once per second · `m` toggle mirror.
 
 ## Tests

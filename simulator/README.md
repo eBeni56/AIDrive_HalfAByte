@@ -40,7 +40,9 @@ python -m venv .venv
 
 The simulator is a WebSocket **client**. It sends JSON text frames to `ws://localhost:8765`. The
 only reply it reads is `gaze_update` (see "What it receives"); everything else is ignored. Messages sent while disconnected are lost, and it reconnects every 2 s.
-If you change `PORT`, change `WS_URL` in `js/config.js` to match.
+If you change `PORT`, change `WS_URL` in `js/config.js` to match. When the page is served over http (with
+`docker compose up` from the repository root, at http://localhost:8080) it connects to `/ws` on the same address
+instead, and nginx (`nginx.conf`) passes that to the server container.
 
 Every message is also printed to the browser console (F12 → Console), one JSON per line, exactly
 as sent. A message that could not be sent (socket down) appears as a `NOT SENT` warning, and the

@@ -91,6 +91,32 @@ def test_no_server_never_blocks_and_reconnects_later() -> None:
         sender.close()
 
 
+def test_messages_from_the_server_do_not_stall_the_connection() -> None:
+    # The simulator server sends gaze_update to clients it has not identified yet. Unread, they filled the
+    # client's receive buffer, pongs were no longer read and the link dropped with "keepalive ping timeout".
+    port, pong = _free_port(), threading.Event()
+
+    def handler(ws: ServerConnection) -> None:
+        for i in range(100):
+            ws.send(json.dumps({"event": "gaze_update", "n": i}))
+        if ws.ping().wait(timeout=3):
+            pong.set()
+        for _ in ws:
+            pass
+
+    with serve(handler, "localhost", port) as server:
+        th = threading.Thread(target=server.serve_forever, daemon=True)
+        th.start()
+        sender = WebSocketSender(WebSocketConfig(url=f"ws://localhost:{port}", reconnect_s=0.1))
+        try:
+            assert _wait(lambda: sender.connected)
+            assert pong.wait(timeout=5), "the client stopped answering pings"
+        finally:
+            sender.close()
+            server.shutdown()
+            th.join(timeout=3)
+
+
 def test_rate_limit() -> None:
     port, received = _free_port(), []
     with _server(port, received):

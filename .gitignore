@@ -151,6 +151,8 @@ activemq-data/
 
 # Environments
 .env
+# ...except the root .env: docker compose settings (ports, replay video), no secrets
+!/.env
 .envrc
 .venv
 env/
@@ -230,3 +232,5 @@ driver_monitor/models/*.task
 driver_monitor/models/*.part
 driver_monitor/recordings/
 *.jsonl
+
+.env

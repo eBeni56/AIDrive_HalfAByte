@@ -1,0 +1,55 @@
+# Start everything:  docker compose up --build
+#   simulator       http://localhost:8080 (SIMULATOR_PORT)   browser page; its WebSocket goes to /ws
+#   server          ws://localhost:8765 (SERVER_PORT)        receives the simulator and the driver monitor
+#   model-download  one-shot: downloads the MediaPipe model into driver_monitor/models/ if missing
+#   driver-monitor  replays driver_monitor/recordings/$DM_VIDEO and streams driver_state to the server
+# Ports and the video are set in .env.
+
+name: aidrive
+
+services:
+  server:
+    build: ./server_simulator_lookingdir
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8765
+      LOG_LEVEL: ${SERVER_LOG_LEVEL:-INFO}
+    ports:
+      - "${SERVER_PORT:-8765}:8765"
+
+  simulator:
+    build: ./simulator
+    depends_on:
+      - server
+    ports:
+      - "${SIMULATOR_PORT:-8080}:80"
+
+  model-download:
+    build: ./driver_monitor
+    image: aidrive-driver-monitor
+    command: ["python", "tools/download_model.py"]
+    volumes:
+      - ./driver_monitor/models:/app/models
+    restart: "no"
+
+  driver-monitor:
+    build: ./driver_monitor
+    image: aidrive-driver-monitor
+    depends_on:
+      model-download:
+        condition: service_completed_successfully
+      server:
+        condition: service_started
+    command:
+      - python
+      - -m
+      - driver_monitor
+      - --no-window
+      - --scroll
+      - --config
+      - config/driver_monitor.docker.yaml
+      - --video
+      - recordings/${DM_VIDEO:-recording-10.mp4}
+    volumes:
+      - ./driver_monitor/models:/app/models:ro
+      - ./driver_monitor/recordings:/app/recordings:ro

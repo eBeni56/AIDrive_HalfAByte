@@ -1,7 +1,11 @@
 // Tunable constants. Loaded first; everything else reads these.
 
 // ===================== CONFIG =====================
-const WS_URL = "ws://localhost:8765";   // backend WebSocket URL
+// Backend WebSocket URL. Served over http (docker compose): the page's own address + /ws, which
+// nginx passes to the server container. Opened as a file (index.html / run.bat): the server directly.
+const WS_URL = location.protocol.startsWith("http")
+  ? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`
+  : "ws://localhost:8765";
 const RECONNECT_MS = 2000;
 const LANE_WIDTH_M = 3.5;               // real-world lane width
 const LANE_WIDTH_PX = 110;              // lane width on screen

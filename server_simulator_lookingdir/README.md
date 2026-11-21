@@ -86,6 +86,9 @@ python -m venv .venv
 Listens on `ws://localhost:8765`. Don't run it together with the simulator's own `test_server.py`
 (same port).
 
+With Docker it runs as the `server` service of `compose.yml` in the repository root (`docker compose up`),
+on `0.0.0.0:8765`; the host port is `SERVER_PORT` in the root `.env`.
+
 | Variable | Default | Meaning |
 |---|---|---|
 | `HOST` | `localhost` | Interface to listen on. Use `0.0.0.0` in Docker. |

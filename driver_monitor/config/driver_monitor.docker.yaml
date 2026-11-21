@@ -1,0 +1,9 @@
+# driver_monitor settings used inside Docker (compose.yml passes this file with --config).
+# Same keys as driver_monitor.yaml; only the WebSocket address differs: inside the compose network
+# the server is reached by its service name, not localhost.
+
+websocket:
+  enabled: true
+  url: "ws://server:8765"
+  max_rate_hz: 0        # 0 = every frame (~30/s)
+  reconnect_s: 2.0      # keeps reconnecting if the server starts later or restarts
