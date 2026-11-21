@@ -52,6 +52,12 @@ const TICK_HZ = 10;               // simulation_tick rate (independent of the re
 // ------------------------------ GAZE DISPLAY (gaze_update from the server) -----------
 const GAZE_TIMEOUT_MS = 1500;     // no message for this long -> "No gaze data", highlight removed
 const GAZE_CHECK_MS = 250;        // how often the badge re-checks the timeout
+// Steadiness (display only): a new region/status is shown once the server has reported it without a
+// break for GAZE_DWELL_MS, and never sooner than GAZE_MIN_HOLD_MS after the previous change. Quick
+// glances and flicker at a region border are ignored. Higher = calmer but slower to follow the eyes.
+const GAZE_DWELL_MS = 50;
+const GAZE_MIN_HOLD_MS = 120;
+const GAZE_FADE_MS = 80;       // cross-fade between the old and the new highlight
 const GAZE_REGIONS = ["front_left", "front_center", "front_right", "side_left", "side_right",
                       "mirror_center", "mirror_left", "mirror_right", "away"];
 const GAZE_REGION_LABEL = {

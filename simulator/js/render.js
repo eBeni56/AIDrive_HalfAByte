@@ -15,7 +15,8 @@
 
 // ------------------------------ CAMERAS ----------------------------------------------
 const EYE = { x: -0.35, y: 0.0, z: 1.2 };  // driver's eye: left-hand drive, so a bit left of the car's center
-const FOV_DEG = 75;                         // horizontal field of view of the windshield camera
+const FOV_DEG = 110;                        // horizontal field of view of the windshield camera (wider = more
+                                            // of the side lanes in view, everything smaller)
 const HORIZON_FRAC = 0.42;                  // horizon line at 42% of screen height (more room for road;
                                             // equivalent to a lens shift, the projection stays a pinhole)
 const NEAR_SPRITE_M = 0.5;                  // objects closer than this to a camera are not drawn by it
@@ -284,10 +285,12 @@ function drawWorld(c, v, objs) {
 // ------------------------------ COCKPIT & MIRRORS ------------------------------------
 // A-pillar geometry (CSS px): each bar runs from y = yb (bottom, B) up to y = 0 (roof, T);
 // outer = side-window edge, inner = windshield edge. Used by drawCockpit and the gaze highlight.
+const PILLAR_INSET = 0.07;   // how far both pillars sit in from the screen edges (fraction of W); larger = narrower windshield
 function pillarGeom(W, H) {
+  const d = PILLAR_INSET;
   return { yb: H * 0.82,
-    left:  { outerB: 0, innerB: W * 0.075, innerT: W * 0.175, outerT: W * 0.105 },
-    right: { outerB: W, innerB: W * 0.945, innerT: W * 0.85,  outerT: W * 0.9 } };
+    left:  { outerB: W * d,       innerB: W * (0.075 + d), innerT: W * (0.175 + d), outerT: W * (0.105 + d) },
+    right: { outerB: W * (1 - d), innerB: W * (0.945 - d), innerT: W * (0.85 - d),  outerT: W * (0.9 - d) } };
 }
 
 // Static cockpit overlay. Also drawn once into an offscreen "occlusion mask" (see buildMask), so

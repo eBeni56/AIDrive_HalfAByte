@@ -15,9 +15,10 @@ services:
       HOST: 0.0.0.0
       PORT: 8765
       LOG_LEVEL: ${SERVER_LOG_LEVEL:-INFO}
-      GAZE_HZ: ${GAZE_HZ:-10}
+      GAZE_HZ: ${GAZE_HZ:-30}
       CAMERA_TIMEOUT_S: ${CAMERA_TIMEOUT_S:-1.0}
       FRONT_SPLIT_DEG: ${FRONT_SPLIT_DEG:-7}
+      RECENT_ALERT_S: ${RECENT_ALERT_S:-5}
     ports:
       - "${SERVER_PORT:-8765}:8765"
 

@@ -140,7 +140,14 @@ It shows what the system thinks the driver is looking at. Code: `js/gaze.js`, co
 
 Invalid JSON, non-objects, unknown statuses and an `ok` without a known region are ignored (never an
 error). Every received frame is printed to the console as `RECEIVED ...` (see "What it sends").
-The server currently sends one every second; the 1.5 s timeout leaves room for one late message.
+The server sends 30 per second (`GAZE_HZ`); the 1.5 s timeout leaves room for late messages.
+
+**Steadiness** (display only; `config.js`): the badge and the highlight do not follow every message. A
+new region (or status) is shown once the server has reported it without a break for `GAZE_DWELL_MS`
+(50 ms), and no sooner than `GAZE_MIN_HOLD_MS` (120 ms) after the previous change; the old highlight
+then fades out while the new one fades in (`GAZE_FADE_MS`, 80 ms). Short glances, blinks and flicker at
+a region border therefore change nothing. Raise the values for a calmer display, lower them to follow
+the eyes faster. The first message (and the first after `No gaze data`) is shown at once.
 
 **Regions** (highlighted on the first-person view only; on the setup screen only the badge is shown):
 `front_left`, `front_center`, `front_right` (thirds of the open windshield), `side_left`, `side_right`

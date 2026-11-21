@@ -1,14 +1,37 @@
 // Gaze display: receives gaze_update from the server, shows a status badge (setup + driving view)
 // and highlights the looked-at region on the first-person view. Display only; sends nothing.
 
-// Latest state. `t` = performance.now() when the last valid message arrived (0 = never).
+// Latest message from the server. `t` = performance.now() when the last valid message arrived (0 = never).
 const gaze = { status: null, region: null, t: 0 };
+// What is DISPLAYED (badge + highlight): the latest message after the steadiness filter (settleGaze).
+// `since` = when it was taken over (0 = nothing shown yet); `prev` = the state before it, faded out.
+const shown = { status: null, region: null, since: 0, prev: null };
+const pending = { key: null, since: 0 };   // a different state the server keeps reporting, and since when
 const badgeEl = document.getElementById("gaze-badge");
 let badgeKey = "";   // last rendered badge content, to skip needless DOM writes
 
 const GAZE_STATUSES = ["ok", "no_face", "eyes_closed", "calibrating", "no_gaze_client"];
 
 function gazeFresh(now) { return gaze.t > 0 && (now === undefined ? performance.now() : now) - gaze.t <= GAZE_TIMEOUT_MS; }
+
+function gazeKey(status, region) { return status === "ok" ? region : status; }
+
+// Steadiness filter. The shown state switches to the latest one only when the server has reported it
+// without a break for GAZE_DWELL_MS AND the shown state has been up for GAZE_MIN_HOLD_MS. Going back to
+// the shown state cancels a pending change, so a short glance (or flicker at a border) changes nothing.
+// The very first message, and the first one after "No gaze data", is shown at once.
+function settleGaze(now) {
+  if (!gazeFresh(now)) { shown.since = 0; shown.prev = null; pending.key = null; return; }
+  const key = gazeKey(gaze.status, gaze.region);
+  const take = () => {
+    shown.prev = shown.since ? { status: shown.status, region: shown.region } : null;
+    shown.status = gaze.status; shown.region = gaze.region; shown.since = now; pending.key = null;
+  };
+  if (!shown.since) { take(); return; }
+  if (key === gazeKey(shown.status, shown.region)) { pending.key = null; return; }
+  if (pending.key !== key) { pending.key = key; pending.since = now; }
+  if (now - pending.since >= GAZE_DWELL_MS && now - shown.since >= GAZE_MIN_HOLD_MS) take();
+}
 
 // Parse one incoming frame. Ignores anything invalid; never throws.
 function handleGazeMessage(data) {
@@ -25,15 +48,16 @@ function handleGazeMessage(data) {
   } catch (e) { /* malformed message: ignore */ }
 }
 
-// Badge in the DOM: shown in setup and in the driving view.
+// Badge in the DOM: shown in setup and in the driving view. Shows the steadied state, like the highlight.
 function updateGazeBadge() {
+  settleGaze(performance.now());
   if (!badgeEl) return;
   let style, text;
-  if (!gazeFresh()) { style = GAZE_STATUS_STYLE.stale; text = style.text; }
+  if (!shown.since) { style = GAZE_STATUS_STYLE.stale; text = style.text; }
   else {
-    if (gaze.status === "ok" && gaze.region === "away") { style = GAZE_STATUS_STYLE.away; text = "Gaze: AWAY"; }
-    else if (gaze.status === "ok") { style = GAZE_STATUS_STYLE.ok; text = "Gaze: " + gaze.region; }
-    else { style = GAZE_STATUS_STYLE[gaze.status]; text = style.text; }
+    if (shown.status === "ok" && shown.region === "away") { style = GAZE_STATUS_STYLE.away; text = "Gaze: AWAY"; }
+    else if (shown.status === "ok") { style = GAZE_STATUS_STYLE.ok; text = "Gaze: " + shown.region; }
+    else { style = GAZE_STATUS_STYLE[shown.status]; text = style.text; }
   }
   const key = text + "|" + style.color;
   if (key === badgeKey) return;
@@ -80,28 +104,37 @@ function gazeLabel(c, text, x, y, W, color) {
   c.fillStyle = "#fff"; c.fillText(text, x, y + 1);
 }
 
-// Last layer of the frame: the highlight for the current gaze region (driving view only).
+// Last layer of the frame: the highlight for the shown gaze region (driving view only). After a change
+// the old highlight fades out while the new one fades in, over GAZE_FADE_MS.
 function drawGaze(c, W, H) {
   const now = performance.now();
-  if (!gazeFresh(now) || gaze.status !== "ok") return;
-  const label = "LOOKING: " + GAZE_REGION_LABEL[gaze.region];
+  settleGaze(now);
+  if (!shown.since) return;
+  const k = Math.min(1, (now - shown.since) / GAZE_FADE_MS);
+  if (k < 1 && shown.prev && shown.prev.status === "ok") drawGazeRegion(c, shown.prev.region, 1 - k, now, W, H);
+  if (shown.status === "ok") drawGazeRegion(c, shown.region, k, now, W, H);
+}
+
+function drawGazeRegion(c, region, alpha, now, W, H) {
   const pulse = Math.sin(now / 250);
   c.save();
-  if (gaze.region === "away") {
+  c.globalAlpha = alpha;
+  if (region === "away") {
     gazeLabel(c, "AWAY", W / 2, H * 0.28, W, GAZE_HIGHLIGHT.away);
     c.restore(); return;
   }
-  const pts = gazeRegionShape(gaze.region, W, H);
+  const pts = gazeRegionShape(region, W, H);
   if (!pts) { c.restore(); return; }
   c.beginPath();
-  pts.forEach((p, k) => (k ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
+  pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
   c.closePath();
   c.fillStyle = GAZE_HIGHLIGHT.fill + (0.30 + 0.10 * pulse).toFixed(3) + ")"; c.fill();
   c.lineJoin = "round";
   c.lineWidth = 5 + pulse; c.strokeStyle = GAZE_HIGHLIGHT.border; c.stroke();
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const isMirror = gaze.region.startsWith("mirror_");
-  gazeLabel(c, label, cx, isMirror ? Math.max(...ys) + 30 : H * 0.2, W, GAZE_HIGHLIGHT.border);
+  const isMirror = region.startsWith("mirror_");
+  gazeLabel(c, "LOOKING: " + GAZE_REGION_LABEL[region], cx, isMirror ? Math.max(...ys) + 30 : H * 0.2, W,
+            GAZE_HIGHLIGHT.border);
   c.restore();
 }
