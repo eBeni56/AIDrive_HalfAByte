@@ -11,7 +11,7 @@
 //   z      = meters above the road (rendering only, never sent).
 // The ego car never moves, so every speed is both "relative to us" and "over the ground".
 // The camera positions below (driver's eye, mirrors) are used only for drawing and for visibility
-// (o.vis, which decides whether an object is in the tick's list); they never shift x_m / y_m.
+// (o.vis; display-side only, the tick sends every object regardless); they never shift x_m / y_m.
 
 // ------------------------------ CAMERAS ----------------------------------------------
 const EYE = { x: -0.35, y: 0.0, z: 1.2 };  // driver's eye: left-hand drive, so a bit left of the car's center
@@ -282,6 +282,14 @@ function drawWorld(c, v, objs) {
 }
 
 // ------------------------------ COCKPIT & MIRRORS ------------------------------------
+// A-pillar geometry (CSS px): each bar runs from y = yb (bottom, B) up to y = 0 (roof, T);
+// outer = side-window edge, inner = windshield edge. Used by drawCockpit and the gaze highlight.
+function pillarGeom(W, H) {
+  return { yb: H * 0.82,
+    left:  { outerB: 0, innerB: W * 0.075, innerT: W * 0.175, outerT: W * 0.105 },
+    right: { outerB: W, innerB: W * 0.945, innerT: W * 0.85,  outerT: W * 0.9 } };
+}
+
 // Static cockpit overlay. Also drawn once into an offscreen "occlusion mask" (see buildMask), so
 // whatever this function covers really hides objects for visibility.
 function drawCockpit(c, W, H) {
@@ -290,10 +298,11 @@ function drawCockpit(c, W, H) {
   c.fillRect(0, 0, W, H * 0.035);                            // roof liner
   // A-pillars: slanted bars, leaning inward toward the roof. Outside each bar is side-window glass.
   // The right one is farther from the (left-seated) driver, so it looks thinner.
-  c.beginPath(); c.moveTo(0, H * 0.82); c.lineTo(W * 0.075, H * 0.82); c.lineTo(W * 0.175, 0); c.lineTo(W * 0.105, 0);
-  c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(W, H * 0.82); c.lineTo(W * 0.945, H * 0.82); c.lineTo(W * 0.85, 0); c.lineTo(W * 0.9, 0);
-  c.closePath(); c.fill();
+  const P = pillarGeom(W, H);
+  for (const s of [P.left, P.right]) {
+    c.beginPath(); c.moveTo(s.outerB, P.yb); c.lineTo(s.innerB, P.yb); c.lineTo(s.innerT, 0); c.lineTo(s.outerT, 0);
+    c.closePath(); c.fill();
+  }
   // Dashboard across the bottom, with an instrument hood behind the wheel.
   c.fillStyle = dash;
   c.beginPath(); c.moveTo(0, H * 0.8); c.quadraticCurveTo(W / 2, H * 0.73, W, H * 0.8);
@@ -504,4 +513,5 @@ function render() {
     drawMirrorGlass(ctx, m);
   }
   drawMinimap(ctx);                                           // 4. top-down overview, top-right corner
+  drawGaze(ctx, W, H);                                        // 5. gaze highlight, always the last layer
 }

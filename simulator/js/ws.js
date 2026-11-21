@@ -17,6 +17,10 @@ function connect() {
     ws = new WebSocket(WS_URL);
     ws.onopen = () => setConn(true);
     ws.onclose = () => { setConn(false); setTimeout(connect, RECONNECT_MS); };
+    ws.onmessage = e => {
+      console.log("RECEIVED " + e.data);   // every incoming frame, exactly as received
+      handleGazeMessage(e.data);           // gaze.js; ignores everything but gaze_update
+    };
     ws.onerror = () => {};   // onclose always follows; nothing to do here
   } catch (e) {
     setConn(false);

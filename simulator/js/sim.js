@@ -112,16 +112,14 @@ function update(dt) {
   if (sim.allDoneT !== null && sim.t >= sim.allDoneT + END_DELAY_S) endSimulation();
 }
 
-// simulation_tick: 10 Hz, one message with a list of every object that is visible right now
-// (windshield or any mirror). Not visible = not in the list. The list can be empty.
-// Visibility is read from the most recent rendered frame (o.vis).
+// simulation_tick: 10 Hz, one message with the position of EVERY object on the map, whether or not
+// the driver can see it right now (windshield, mirrors, blind spot or far away: all included).
 function sendTick() {
   if (!sim || sim.phase !== "driving") return;
   const ev = {
     event: "simulation_tick",
     timestamp: nowS(),
-    objects: sim.objs.filter(o => VIEW_NAMES.some(n => o.vis[n]))
-                     .map(o => Object.assign({ object_id: o.id, type: o.type }, mapPx(o.x_m, o.y_m))),
+    objects: sim.objs.map(o => Object.assign({ object_id: o.id, type: o.type }, mapPx(o.x_m, o.y_m))),
   };
   sim.ticks++;
   emit(ev);

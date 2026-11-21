@@ -44,3 +44,26 @@ const PED_GRASS_OFFSET_M = 1.5;   // pedestrian start/end point: this far outsid
 const COUNTDOWN_S = 3;            // "3, 2, 1" (world frozen), then GO
 const END_DELAY_S = 3;            // after the last object finishes, keep running this long, then freeze
 const TICK_HZ = 10;               // simulation_tick rate (independent of the render frame rate)
+
+// ------------------------------ GAZE DISPLAY (gaze_update from the server) -----------
+const GAZE_TIMEOUT_MS = 1500;     // no message for this long -> "No gaze data", highlight removed
+const GAZE_CHECK_MS = 250;        // how often the badge re-checks the timeout
+const GAZE_REGIONS = ["front_left", "front_center", "front_right", "side_left", "side_right",
+                      "mirror_center", "mirror_left", "mirror_right", "away"];
+const GAZE_REGION_LABEL = {
+  front_left: "FRONT LEFT", front_center: "FRONT CENTER", front_right: "FRONT RIGHT",
+  side_left: "LEFT SIDE WINDOW", side_right: "RIGHT SIDE WINDOW",
+  mirror_center: "REAR-VIEW MIRROR", mirror_left: "LEFT MIRROR", mirror_right: "RIGHT MIRROR",
+  away: "AWAY",
+};
+// Badge text + color per status ("ok" and "away" text is built from the region).
+const GAZE_STATUS_STYLE = {
+  ok:              { color: "#2ecc71" },
+  away:            { color: "#ffb020" },
+  no_face:         { color: "#ff4d4d", text: "No face detected" },
+  eyes_closed:     { color: "#ff4d4d", text: "Eyes closed" },
+  calibrating:     { color: "#4da3ff", text: "Camera calibrating - look straight ahead" },
+  no_gaze_client:  { color: "#8a8f9c", text: "No camera connected" },
+  stale:           { color: "#8a8f9c", text: "No gaze data" },
+};
+const GAZE_HIGHLIGHT = { fill: "rgba(255,40,40,", border: "#ff2a2a", away: "#ffb020" };  // red frame; fill alpha added when drawing
