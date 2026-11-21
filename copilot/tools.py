@@ -202,6 +202,18 @@ def _resolve_target_slots(when_raw: str, now: datetime) -> list[datetime]:
         d1 = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         return [d1.replace(hour=6), d1.replace(hour=12), d1.replace(hour=18), d1 + timedelta(days=1)]
 
+    if w in ("weekend", "this weekend", "next weekend"):
+        days_to_sat = (5 - now.weekday()) % 7
+        if days_to_sat == 0 and w == "next weekend":
+            days_to_sat = 7
+        sat = (now + timedelta(days=days_to_sat)).replace(hour=0, minute=0, second=0, microsecond=0)
+        sun = sat + timedelta(days=1)
+        return [sat.replace(hour=12), sat.replace(hour=18), sun.replace(hour=12), sun.replace(hour=18)]
+
+    if w == "next week":
+        start = (now + timedelta(days=2)).replace(hour=12, minute=0, second=0, microsecond=0)
+        return [start + timedelta(days=d) for d in range(4)]
+
     # Specific weekday (e.g. "monday", "friday")
     for day_name, day_idx in WEEKDAYS.items():
         if day_name in w:
@@ -234,7 +246,7 @@ def _resolve_target_slots(when_raw: str, now: datetime) -> list[datetime]:
 
 
 def parse_weather_args(args: str, default_city: str) -> tuple[str, str]:
-    """Parses '/weather Cluj-Napoca | tonight', '/weather tonight', or '/weather Bucharest'."""
+    """Parses '/weather Cluj-Napoca | tonight', '/weather weekend', or '/weather Bucharest'."""
     raw = args.strip()
     if not raw:
         return default_city, "default"
@@ -243,11 +255,13 @@ def parse_weather_args(args: str, default_city: str) -> tuple[str, str]:
         return (city_part or default_city), (when_part or "default")
 
     low = raw.lower()
-    time_keywords = ("tonight", "today", "tomorrow", "now", "current", "default", *WEEKDAYS.keys())
+    time_keywords = (
+        "tonight", "today", "tomorrow", "weekend", "this weekend", "next weekend",
+        "next week", "now", "current", "default", *WEEKDAYS.keys(),
+    )
     if low in time_keywords or re.fullmatch(r"\d{4}-\d{2}-\d{2}", low):
         return default_city, low
     return raw, "default"
-
 
 def fetch_weather(args: str, default_city: str = "Cluj-Napoca") -> tuple[str, list[str]]:
     """Returns (location_label, list_of_6h_window_forecast_lines)."""
@@ -282,6 +296,7 @@ def fetch_weather(args: str, default_city: str = "Cluj-Napoca") -> tuple[str, li
         now = datetime.now()
         slots = _resolve_target_slots(when, now)
 
+        now_hour = now.replace(minute=0, second=0, microsecond=0)
         lines: list[str] = []
         for slot in slots:
             key = slot.strftime("%Y-%m-%dT%H:00")
@@ -292,9 +307,12 @@ def fetch_weather(args: str, default_city: str = "Cluj-Napoca") -> tuple[str, li
             temp_c = round(float(temps[idx])) if idx < len(temps) else None
             rain_p = int(rain_probs[idx]) if idx < len(rain_probs) and rain_probs[idx] is not None else 0
             wind_k = round(float(winds[idx])) if idx < len(winds) and winds[idx] is not None else 0
-            day_label = slot.strftime("%A %Y-%m-%d %H:%M")
+            if abs((slot - now_hour).total_seconds()) <= 3600:
+                prefix = f"Current weather right now ({slot.strftime('%H:%M')})"
+            else:
+                prefix = f"Future forecast for {slot.strftime('%A %H:%M')}"
             lines.append(
-                f"{day_label}: {cond}, {temp_c} degrees Celsius, "
+                f"{prefix}: {cond}, {temp_c} degrees Celsius, "
                 f"{rain_p} percent rain chance, wind {wind_k} kilometers per hour"
             )
         return label, lines
