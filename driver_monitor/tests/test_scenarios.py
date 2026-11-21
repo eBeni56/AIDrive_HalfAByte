@@ -22,8 +22,10 @@ EXPECTED: dict[str, list[tuple[str, str, set[str]]]] = {
         ("ROAD", "OPEN", {"DISTRACTED"}),
     ],
     "mirror_left": [("LEFT_MIRROR", "OPEN", set())],
+    "mirror_left_high": [("LEFT_MIRROR", "OPEN", set())],
+    "mirror_corner_right": [("RIGHT_MIRROR", "OPEN", set())],
     "rear_mirror": [("REAR_MIRROR", "OPEN", set())],
-    "look_side": [("LEFT_SIDE", "OPEN", set())],
+    "look_side": [("LEFT_SIDE", "UNKNOWN", set())],  # head turned > 40 deg: the eyes are not measurable
     "shoulder_right": [("RIGHT_SIDE", "UNKNOWN", set())],
     "face_lost": [("UNKNOWN", "UNKNOWN", set())],
 }
