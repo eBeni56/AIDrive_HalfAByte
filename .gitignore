@@ -230,3 +230,8 @@ driver_monitor/models/*.task
 driver_monitor/models/*.part
 driver_monitor/recordings/
 *.jsonl
+
+pickup_detection/drive_logs.db
+pickup_detection/models
+speech-recognition/transcript.txt
+speech-recognition/test_with_keyterms.txt
