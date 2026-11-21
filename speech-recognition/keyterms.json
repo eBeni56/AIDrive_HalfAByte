@@ -52,6 +52,12 @@
     "call emergency",
     "answer call",
     "hang up",
-    "park assist"
+    "park assist",
+    "Hey Jarvis",
+    "Jarvis",
+    "weather",
+    "news",
+    "stop listening",
+    "reset memory"
   ]
 }
