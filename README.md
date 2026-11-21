@@ -1,18 +1,27 @@
 # AIDrive_HalfAByte
 Porsche AI Drive Hackathon -- Cluj-Napoca, November 2026 -- Team: Half A Byte
 
-## Run everything together (Docker)
+## Run everything with one command
 
-Needs Docker Desktop. From this folder:
+Needs Docker Desktop and a webcam. From this folder:
 
 ```
 start.bat            # Windows (macOS / Linux: ./start.sh)
 start.bat --build    # after a code change: rebuild the images first
 ```
 
-This is `docker compose up` (logs in the terminal, Ctrl+C stops everything) plus: as soon as the dashboard and
-the simulator answer, it opens them in two browser windows (Chrome or Edge with `--new-window`; another default
-browser opens them as tabs). Plain `docker compose up --build` works too, without opening the browser.
+It starts:
+
+* **server, simulator, dashboard** in Docker (`docker compose up`: logs in this terminal, Ctrl+C stops them);
+* **the driver monitor** (webcam, MediaPipe) on this PC, in its own minimised window: Docker Desktop can't reach
+  a webcam. Its camera image with the markings appears on the dashboard. The first run sets it up by itself:
+  with [uv](https://docs.astral.sh/uv/) if installed, otherwise in `driver_monitor/.venv` with Python 3.12
+  (`py -3.12`); this takes a few minutes. Close its window (or Ctrl+C in it) to stop it.
+  Another camera: `set DM_ARGS=--camera 0` before `start.bat` (`--list-cameras` shows them);
+* **two browser windows**, the dashboard and the simulator, as soon as they answer.
+
+Look straight ahead until calibration is done (shown on the dashboard), then place objects in the simulator and
+press **Start simulation**. Plain `docker compose up --build` starts only the Docker part.
 
 | Service | What it does | Address on this PC |
 |---|---|---|
@@ -40,10 +49,9 @@ services always use `server:8765`; the driver monitor gets that address from
 Replay another video without restarting the rest: `docker compose run --rm -e DM_VIDEO=recording-12.mp4 driver-monitor`
 (or change `DM_VIDEO` in `.env` and `docker compose up -d driver-monitor`).
 
-### With the live webcam
+### The live webcam by hand
 
-Docker Desktop on Windows can't open a USB webcam, so the live driver monitor runs on the host and connects to
-the server's published port (its default address in `driver_monitor/config/driver_monitor.yaml` is
+`start.bat` does this for you. The driver monitor runs on the host and connects to the server's published port (its default address in `driver_monitor/config/driver_monitor.yaml` is
 `ws://localhost:8765`, which matches `SERVER_PORT`):
 
 ```

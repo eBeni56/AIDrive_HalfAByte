@@ -13,6 +13,7 @@ frames (it always gets the newest one); it never slows down the camera loop.
 
 from __future__ import annotations
 
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -25,6 +26,13 @@ from driver_monitor.config import CameraStreamConfig
 BOUNDARY = "frame"
 
 
+class _Server(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second program bind the SAME port while the first still listens (the
+    # browser then gets one of them at random). Without it a second driver monitor gets "port in use".
+    allow_reuse_address = os.name != "nt"
+    daemon_threads = True
+
+
 class MjpegServer:
     def __init__(self, cfg: CameraStreamConfig) -> None:
         self.cfg = cfg
@@ -35,8 +43,7 @@ class MjpegServer:
         self._viewers = 0
         self._stop = threading.Event()
         self._next_t: float | None = None
-        self._httpd = ThreadingHTTPServer((cfg.host, cfg.port), self._handler_class())  # OSError if port used
-        self._httpd.daemon_threads = True
+        self._httpd = _Server((cfg.host, cfg.port), self._handler_class())  # OSError if the port is used
         self._thread = threading.Thread(target=self._httpd.serve_forever, name="mjpeg-server", daemon=True)
         self._thread.start()
 

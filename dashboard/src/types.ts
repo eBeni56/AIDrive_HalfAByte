@@ -86,3 +86,24 @@ export interface ChatMessage {
   text: string;
   at: number; // Date.now() when it arrived
 }
+
+/** From the server (attention.py): an object of the simulation and whether the driver looked at it in time. */
+export interface AttentionEvent {
+  event: "attention_event";
+  t_s: number; // seconds since simulation_started
+  kind: "appeared" | "zone_change" | "noticed" | "missed";
+  object_id: string;
+  type: string;
+  zone: string | null; // null: farther than 30 m (no zone)
+  window_s: number | null; // seconds the driver has to look after the object entered the zone
+  reaction_s: number | null; // only for "noticed"
+}
+
+export interface AttentionSummary {
+  event: "attention_summary";
+  duration_s: number;
+  noticed_count: number;
+  missed_count: number;
+  avg_reaction_s: number | null;
+  missed: { t_s: number; object_id: string; type: string; zone: string }[];
+}

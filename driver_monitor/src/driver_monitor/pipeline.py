@@ -5,7 +5,7 @@ Per frame, in this order (later steps may use earlier results):
   2 signals    head (relative, smoothed) -> eyes (openness, state) -> gaze (head + eyes) -> mouth
   3 detectors  eye closure/microsleep -> yawn -> eyes almost closed -> personal eye baseline + eyes
                narrowed -> head nod -> head falling
-               -> attention + distraction -> face visibility -> eye stats + tired eyes
+               -> attention + distraction -> face visibility -> phone in hand -> eye stats + tired eyes
                -> fatigue ledger (events of this frame) -> drowsiness
   4 output     DriverState (summary, quality, calibration, signals, windowed state, detections)
 """
@@ -32,12 +32,14 @@ from driver_monitor.detectors.face_visibility import FaceVisibilityDetector
 from driver_monitor.detectors.head_falling import HeadFallingDetector
 from driver_monitor.detectors.head_nod import HeadNodDetector
 from driver_monitor.detectors.narrowed import EyesNarrowedDetector
+from driver_monitor.detectors.phone import PhoneDetector
 from driver_monitor.detectors.tired_eyes import TiredEyesDetector
 from driver_monitor.detectors.yawn import YawnDetector
 from driver_monitor.output import builder
 from driver_monitor.output.schema import DriverState
 from driver_monitor.perception.face_tracker import FaceTracker
 from driver_monitor.perception.features import FeatureExtractor, FrameFeatures
+from driver_monitor.perception.phone_finder import PhoneFinder, PhoneSighting
 from driver_monitor.signals.eyes import EyeSignalProcessor, EyesSignal
 from driver_monitor.signals.gaze import GazeEstimator, GazeSignal
 from driver_monitor.signals.head import HeadPoseProcessor, HeadSignal
@@ -59,6 +61,7 @@ class FrameResult:
     eyes: EyesSignal
     gaze: GazeSignal
     mouth: MouthSignal
+    phone: PhoneSighting | None = None  # the phone seen in the newest analysed frame (for the overlay)
 
 
 class DriverMonitor:
@@ -95,6 +98,11 @@ class DriverMonitor:
         self.attention = AttentionTracker(cfg.distraction)
         self.distraction = DistractionDetector(cfg.distraction)
         self.face_vis = FaceVisibilityDetector(cfg.face)
+        self.phone = PhoneDetector(cfg.phone)
+        self.phone_finder: PhoneFinder | None = None  # created lazily with the face tracker
+        self._phone_ready = not cfg.phone.enabled  # True once created (or switched off / model missing)
+        self._phone_seen: PhoneSighting | None = None
+        self.notes: list[str] = []  # one-off messages for the terminal (e.g. a missing optional model)
         self.eye_stats = EyeStatistics(d, cfg.eyes, cfg.eye_closure)
         self.tired = TiredEyesDetector(cfg.tired_eyes)
         self.fatigue = FatigueLedger(d)
@@ -126,6 +134,7 @@ class DriverMonitor:
             self.attention,
             self.distraction,
             self.face_vis,
+            self.phone,
             self.eye_stats,
             self.tired,
             self.fatigue,
@@ -137,6 +146,8 @@ class DriverMonitor:
     def close(self) -> None:
         if self.tracker is not None:
             self.tracker.close()
+        if self.phone_finder is not None:
+            self.phone_finder.close()
 
     # ------------------------------------------------------------------ per frame
     def process(
@@ -158,6 +169,15 @@ class DriverMonitor:
             self.start_calibration(t)
         if self.tracker is None:
             self.tracker = FaceTracker(self.cfg.landmarker, self._base_dir)
+        if not self._phone_ready:
+            self._phone_ready = True
+            try:
+                self.phone_finder = PhoneFinder(self.cfg.phone, self._base_dir)
+            except FileNotFoundError as e:  # optional: everything else works without it
+                self.notes.append(f"Phone detection off: {e}")
+        if self.phone_finder is not None:
+            self.phone_finder.submit(frame_bgr, t)  # non-blocking, at most detect_hz
+            self._phone_seen = self.phone_finder.latest(t)
         obs = self.tracker.process(frame_bgr, t)
         feats = self.features.extract(frame_bgr, obs, t)
         return self.process_features(feats, t, (time.perf_counter() - t0) * 1000.0, camera_fps)
@@ -207,6 +227,7 @@ class DriverMonitor:
             att = self.attention.update(gaze, t)
             self.distraction.update(att, t)
             self.face_vis.update(face, eyes.state, self.falling.active, self.head_proc.history, t)
+            self.phone.update(self._phone_seen, t)
             self.eye_stats.update(eyes, t)
             stats = self.eye_stats.stats(self.closure, t, self.baseline.value)
             self.tired.update(stats, t)
@@ -219,6 +240,7 @@ class DriverMonitor:
                 self.falling,
                 self.distraction,
                 self.face_vis,
+                self.phone,
                 self.tired,
             ):
                 detections.extend(det.emit())
@@ -304,4 +326,4 @@ class DriverMonitor:
             ),
             detections=builder.detections_out(detections),
         )
-        return FrameResult(state, feats, head, eyes, gaze, mouth)
+        return FrameResult(state, feats, head, eyes, gaze, mouth, self._phone_seen)

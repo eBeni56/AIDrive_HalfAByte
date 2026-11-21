@@ -1,4 +1,5 @@
-# Start:  docker compose up --build        (server + simulator; the driver monitor runs on the host with the webcam)
+# Everything incl. the webcam driver monitor (on the host) and the browser windows: start.bat / ./start.sh
+# Docker part only:  docker compose up --build   (server + simulator + dashboard)
 # Video replay (needs driver_monitor/recordings/): docker compose --profile replay up --build
 #   simulator       http://localhost:8080 (SIMULATOR_PORT)   browser page; its WebSocket goes to /ws
 #   dashboard       http://localhost:8081 (DASHBOARD_PORT)   camera + chat + detections; WebSocket to /ws,

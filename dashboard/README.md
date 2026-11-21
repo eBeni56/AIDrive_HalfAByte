@@ -1,25 +1,35 @@
 # Dashboard
 
-A separate page from the simulator: the driver camera with the driver monitor's markings (top left), the
-conversation with the voice assistant (top right) and what the driver monitor detects (bottom).
-React + TypeScript, built with Vite.
+A separate page from the simulator. Two large console-like logs, in plain sentences, plus a small camera
+image and a small chat. React + TypeScript, built with Vite.
+
+| Panel | Shows |
+|---|---|
+| **Simulation** (centre) | `SIM` (purple) input from the simulation: started, a new object appeared, an object moved into another zone (and how long the driver has to look), the end with a summary. `CAM` (cyan): where the driver looks, when it changes and holds for 0.3 s. `OK` (green): the driver looked at an object in time, with the reaction time. `MISSED` (red): did not look in time. `STATS` at the end: a small table of the run (share of time looking at the road, at the mirrors, elsewhere, eyes closed; objects noticed / missed and which; average reaction; yawns, eye closures, distractions, phone in hand), collected by the dashboard in `src/narrator.ts`. |
+| **Driver** (right) | A driver display: ONE big icon and one short instruction, the most important current problem. Highest first: eyes closed / microsleep / head falling ("Wake up!"), an object of the simulation the driver has not looked at yet ("Look right – a truck is in your right blind spot", with a direction arrow), phone in the hand ("Put down your phone"), looking at none of the 8 regions for 1 s or distracted ("Eyes on the road"), tiredness, face not visible, calibrating, no camera, otherwise "All good". A message stays at least 3 s; only a more important one replaces it sooner. Rules and texts: `src/hud.ts`. |
+| Camera (top left) | The driver monitor's own preview with its markings (eye and lip contours, iris, gaze arrow). |
+| Assistant (bottom left) | Placeholder for the conversation with the voice assistant. |
+
+A phone in the hand is the driver monitor's `PHONE_USE` detection (MediaPipe Object Detector); the camera image
+shows a box around the phone.
 
 ```
-                 driver_state JSON                        driver_state (10/s), gaze_update, chat_message
-driver_monitor ─────────────────────► server :8765 ───────────────────────────────────────► dashboard
-      │                                    ▲
-      │ camera preview (MJPEG)             │ chat_message (voice assistant)
-      └─────────── http://localhost:8090/stream.mjpg ──────────────────────────────────────► dashboard
+                 driver_state JSON                        driver_state (10/s), gaze_update, chat_message,
+driver_monitor ─────────────────────► server :8765 ───── simulation_started/_ended, attention_event/_summary ──► dashboard
+      │                                 ▲      ▲
+      │ camera preview (MJPEG)          │      └─ simulator (simulation_tick: object positions)
+      └─────────── http://localhost:8090/stream.mjpg ─────────────────────────────────────────────────────────► dashboard
 ```
 
-* **Camera:** the driver monitor's own preview (eye and lip contours, iris, gaze arrow, status panel,
-  detections), served by the driver monitor as MJPEG (`camera_stream` in
-  `driver_monitor/config/driver_monitor.yaml`, default `http://localhost:8090/stream.mjpg`). The browser can't
-  open the webcam itself: the driver monitor already uses it. Frames are only encoded while a page watches.
 * **Data:** the dashboard connects to the server and sends `{"type": "hello", "role": "dashboard"}`. The
-  server then forwards the latest `driver_state` (`DASHBOARD_HZ`, default 10/s) and every `chat_message`, and
-  `gaze_update` as to the simulator. The simulator never gets `driver_state`.
-* **Chat:** only a place for the conversation for now. Messages appear when any client sends the server
+  server then forwards the latest `driver_state` (`DASHBOARD_HZ`, default 10/s), the simulation's start and end,
+  its own `attention_event` / `attention_summary` (which zone each object is in, and whether the driver looked
+  at it in time: the rules are in [the server README](../server_simulator_lookingdir/README.md#attention-did-the-driver-look-in-time)),
+  every `gaze_update` and every `chat_message`. The simulator gets none of these, only `gaze_update`.
+* **Camera:** served by the driver monitor as MJPEG (`camera_stream` in
+  `driver_monitor/config/driver_monitor.yaml`). The browser can't open the webcam itself: the driver monitor
+  already uses it. Frames are only encoded while a page watches.
+* **Chat:** messages appear when any client sends the server
   `{"type": "chat_message", "role": "user" | "assistant", "text": "..."}`, or when code in the page calls
   `addChatMessage(role, text)` from `src/chat.ts` (`window.dashboardChat.add("assistant", "hi")` in the
   browser console). There is no history: a message sent while the page is closed is not shown later.
@@ -49,11 +59,12 @@ Put them in `dashboard/.env.local` for `npm run dev`. `npm run build` type-check
 
 | File | What |
 |---|---|
-| `src/App.tsx` | Layout; decides whether the camera data is fresh (no `driver_state` for 1.5 s = "No camera data") |
-| `src/useServer.ts` | WebSocket: hello, messages, reconnect every 2 s |
+| `src/App.tsx` | Layout: camera and chat on the left, the two terminals |
+| `src/useServer.ts` | WebSocket: hello, routes each message to the narrator, reconnects every 2 s |
+| `src/narrator.ts` | Every sentence of the Simulation log and the end-of-run statistics |
+| `src/hud.ts`, `src/components/DriverHud.tsx` | The driver display: which problem is shown (priorities, 3 s hold), its text and icon |
+| `src/log.ts` | The Simulation log (last 500 lines) |
+| `src/components/Terminal.tsx` | A log panel; scrolls by itself while you are at the bottom |
 | `src/components/CameraPanel.tsx` | The MJPEG image; reopens it when the driver monitor (re)starts |
 | `src/components/ChatPanel.tsx`, `src/chat.ts` | Conversation placeholder and its message store |
-| `src/components/StatusPanel.tsx` | Cards: drowsiness, attention, gaze, eyes and head, active detections |
-| `src/components/Header.tsx` | Server, calibration, face and fps status |
-| `src/types.ts` | The `driver_state` fields used (full reference: `driver_monitor/docs/detection-schema.md`) |
-| `src/format.ts` | Number formatting and the colour of each state |
+| `src/types.ts` | The message fields used (full `driver_state` reference: `driver_monitor/docs/detection-schema.md`) |

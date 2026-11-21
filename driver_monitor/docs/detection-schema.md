@@ -239,6 +239,7 @@ All numbers are defaults from [config.py](../src/driver_monitor/config.py) (over
 | Type | Means | Starts when | Severity | Ends when |
 |---|---|---|---|---|
 | `EYES_CLOSED` | Eyes shut longer than a blink | `CLOSED` ≥ 0.5 s | WARNING | eyes reopen (`outcome: REOPENED`) or it becomes a microsleep (`ESCALATED_TO_MICROSLEEP`) |
+| `PHONE_USE` | A mobile phone is visible in front of the driver (held in the hand) | MediaPipe Object Detector (EfficientDet-Lite0, COCO `cell phone`, score ≥ 0.35, ~6 checks/s) sees one for 0.4 s, gaps < 1 s ignored | WARNING; DANGER after 3 s | no phone seen for 1 s (`ended_t` = last sighting) |
 | `MICROSLEEP` | Eyes shut dangerously long — **instant alarm** | `CLOSED` ≥ 1.0 s (same `started_t` as `EYES_CLOSED`) | CRITICAL | eyes not closed for 0.3 s (`REOPENED`), or tracking lost > 2 s (`TRACKING_LOST`) |
 | `EYES_ALMOST_CLOSED` | Eyes held nearly shut | `ALMOST_CLOSED` ≥ 2 s, not looking down / smiling / yawning | WARNING | 1 s without it |
 | `EYES_NARROWED` | Eyes open but clearly narrower than **this driver's normal** (early tiredness) | `openness_ratio` < 0.85 for 5 s (only after the normal opening is learned) | INFO; WARNING if < 0.7 or ≥ 20 s | ratio > 0.9 for 2 s |
@@ -262,6 +263,7 @@ the speed decides. It gets every `MICROSLEEP` instantly with its exact `closed_f
 
 | Type | `details` fields |
 |---|---|
+| `PHONE_USE` | `score` (latest), `max_score`, `box` `{x, y, w, h}` (pixels of the camera frame, not mirrored), `seen_for_s` |
 | `EYES_CLOSED` | `closed_for_s`, `min_openness`, `left_openness`, `right_openness`, `head_pitch_deg`, `microsleep_threshold_s`, `seconds_until_microsleep`, `outcome` (`REOPENED` \| `ESCALATED_TO_MICROSLEEP` \| `TRACKING_LOST` when ended) |
 | `MICROSLEEP` | `closed_for_s`, `confirmed_t` (when 1 s was crossed), `min_openness`, `left_openness`, `right_openness`, `head_pitch_deg`, `head_pitch_velocity_dps`, `head_falling`, `microsleeps_10min`, `outcome` (`REOPENED` \| `TRACKING_LOST` when ended) |
 | `EYES_ALMOST_CLOSED` | `openness`, `mean_openness`, `min_openness`, `almost_closed_below`, `closed_below`, `left_openness`, `right_openness`, `looking_down`, `smiling` |

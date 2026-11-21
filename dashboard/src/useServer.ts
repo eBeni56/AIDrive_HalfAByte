@@ -1,33 +1,44 @@
 // Connection to the server: says hello as the dashboard, then receives
-//   driver_state  (DASHBOARD_HZ, default 10/s)  everything the camera detects
-//   gaze_update   (GAZE_HZ, default 10/s)       the gaze as a simulator region
-//   chat_message  (when one is sent)            -> the chat panel
+//   driver_state           (DASHBOARD_HZ, default 10/s)  what the camera detects   -> driver display
+//   gaze_update            (GAZE_HZ, default 10/s)       where the driver looks    -> both
+//   simulation_started / _ended, attention_event, attention_summary              -> both
+//   chat_message           (when one is sent)                                     -> chat panel
 // Reconnects every RETRY_MS if the server is not running or restarts.
 import { useEffect, useState } from "react";
 import { addChatMessage } from "./chat";
-import { RETRY_MS, WS_URL } from "./config";
+import { RETRY_MS, STALE_MS, WS_URL } from "./config";
+import { hudInput } from "./hud";
+import { onDriverState, onGaze, onServer, onSimulation } from "./narrator";
 import type { DriverState, GazeUpdate } from "./types";
 
-export interface ServerData {
-  connected: boolean;
-  driver: DriverState | null;
-  driverAt: number; // Date.now() of the last driver_state (0 = never)
-  gaze: GazeUpdate | null;
-}
-
-export function useServer(): ServerData {
-  const [data, setData] = useState<ServerData>({ connected: false, driver: null, driverAt: 0, gaze: null });
+/** True while fresh driver_state arrives (the driver monitor runs and the server is connected). */
+export function useServer(): boolean {
+  const [cameraLive, setCameraLive] = useState(false);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
     let retry: number | undefined;
     let stopped = false;
+    let lastDriverAt = 0;
+    let live = false;
+    let wasConnected = false;
+
+    const setLive = (v: boolean) => {
+      if (v === live) return;
+      live = v;
+      setCameraLive(v);
+    };
+    const check = window.setInterval(() => {
+      if (live && Date.now() - lastDriverAt > STALE_MS) setLive(false);
+    }, 250);
 
     const open = () => {
       ws = new WebSocket(WS_URL);
       ws.onopen = () => {
         ws?.send(JSON.stringify({ type: "hello", role: "dashboard" }));
-        setData((d) => ({ ...d, connected: true }));
+        wasConnected = true;
+        hudInput.connection(true);
+        onServer(true);
       };
       ws.onmessage = (e: MessageEvent<string>) => {
         let msg: Record<string, unknown>;
@@ -37,15 +48,25 @@ export function useServer(): ServerData {
           return;
         }
         if (msg.type === "driver_state") {
-          setData((d) => ({ ...d, driver: msg as unknown as DriverState, driverAt: Date.now() }));
+          lastDriverAt = Date.now();
+          setLive(true);
+          hudInput.driverState(msg as unknown as DriverState);
+          onDriverState(msg as unknown as DriverState);
         } else if (msg.event === "gaze_update") {
-          setData((d) => ({ ...d, gaze: msg as unknown as GazeUpdate }));
+          hudInput.gaze(msg as unknown as GazeUpdate);
+          onGaze(msg as unknown as GazeUpdate);
         } else if (msg.type === "chat_message" && (msg.role === "user" || msg.role === "assistant")) {
           addChatMessage(msg.role, String(msg.text ?? ""));
+        } else if (typeof msg.event === "string") {
+          hudInput.simulation(msg);
+          onSimulation(msg);
         }
       };
       ws.onclose = () => {
-        setData((d) => ({ ...d, connected: false }));
+        if (wasConnected) onServer(false);
+        hudInput.connection(false);
+        wasConnected = false;
+        setLive(false);
         if (!stopped) retry = window.setTimeout(open, RETRY_MS);
       };
     };
@@ -54,19 +75,10 @@ export function useServer(): ServerData {
     return () => {
       stopped = true;
       window.clearTimeout(retry);
+      window.clearInterval(check);
       ws?.close();
     };
   }, []);
 
-  return data;
-}
-
-/** Re-renders every `ms` so "how old is the data" checks stay current without new messages. */
-export function useNow(ms = 500): number {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), ms);
-    return () => window.clearInterval(id);
-  }, [ms]);
-  return now;
+  return cameraLive;
 }

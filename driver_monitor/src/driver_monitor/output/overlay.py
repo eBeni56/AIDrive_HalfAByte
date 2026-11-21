@@ -55,6 +55,7 @@ class OverlayRenderer:
             self._contours(img, pts, res.state)
             self._gaze_arrow(img, pts, res.state)
         self._panel(img, res.state)
+        self._phone(img, res, w)  # after the panel: the box stays visible on top of it
         self._detections(img, res.state, w, h)
         return img
 
@@ -100,6 +101,19 @@ class OverlayRenderer:
             cv2.LINE_AA,
             tipLength=0.2,
         )
+
+    def _phone(self, img: npt.NDArray[np.uint8], res: FrameResult, w: int) -> None:
+        """Box around the phone seen in the newest analysed frame; red once PHONE_USE is active."""
+        p = res.phone
+        if p is None:
+            return
+        x, y, bw, bh = p.box
+        if self.mirror:
+            x = w - x - bw
+        active = any(d.type.value == "PHONE_USE" for d in res.state.active_detections())
+        color = (40, 40, 255) if active else (40, 200, 255)
+        cv2.rectangle(img, (x, y), (x + bw, y + bh), color, 3, cv2.LINE_AA)
+        _text(img, f"PHONE {p.score:.0%}", (x, max(18, y - 8)), color, 0.6, 2)
 
     def _panel(self, img: npt.NDArray[np.uint8], s: DriverState) -> None:
         e, hd, g, m, dr, a, q = s.eyes, s.head, s.gaze, s.mouth, s.drowsiness, s.attention, s.quality

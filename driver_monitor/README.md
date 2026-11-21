@@ -29,6 +29,11 @@ uv run python tools/ws_receiver.py          # listens on ws://localhost:8765, pr
 uv run python tools/ws_receiver.py --full   # prints every JSON message
 ```
 
+A mobile phone in the hand is detected too (`PHONE_USE`): MediaPipe Object Detector with EfficientDet-Lite0
+(`models/efficientdet_lite0.tflite`, downloaded by `tools/download_model.py` with the face model; settings: `phone`
+in the config). It runs in the background ~6 times per second and never slows down the face pipeline; without the
+model file it is switched off with a message. The preview draws a box around the phone.
+
 It also serves the preview window's image (with all the markings) as an MJPEG stream for the dashboard, at
 `http://localhost:8090/stream.mjpg` (`camera_stream` in the config, `--no-stream` turns it off). A frame is only
 encoded while a page is watching, so it costs nothing otherwise.

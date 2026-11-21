@@ -87,6 +87,8 @@ def describe(d: DetectionOut) -> str:
             )
         case DetectionType.FACE_NOT_VISIBLE:
             return f"no face for {x.get('lost_for_s')}s, likely {x.get('likely_cause')}"
+        case DetectionType.PHONE_USE:
+            return f"phone in view for {x.get('seen_for_s')}s (confidence {x.get('score')})"
         case DetectionType.DROWSY:
             return (
                 f"{x.get('level')} score {x.get('score')} ({', '.join(x.get('contributing') or []) or '-'})"

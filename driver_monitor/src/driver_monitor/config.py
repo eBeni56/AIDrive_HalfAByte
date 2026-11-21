@@ -336,6 +336,21 @@ class FaceVisibilityConfig(_Section):
     context_s: float = 0.6  # how far back the "last known pose" looks
 
 
+class PhoneConfig(_Section):
+    """PHONE_USE: a mobile phone is visible in front of the driver (held in the hand). MediaPipe Object
+    Detector (EfficientDet-Lite0, COCO class "cell phone") runs in the background at detect_hz, so it never
+    slows down the face pipeline. Without the model file it is switched off with a warning."""
+
+    enabled: bool = True
+    model_path: str = "models/efficientdet_lite0.tflite"
+    detect_hz: float = 6.0  # object detection runs per second (it is much slower than the face landmarker)
+    min_score: float = 0.35  # "cell phone" confidence needed to count as seen
+    start_s: float = 0.4  # seen (with gaps shorter than end_s) this long -> PHONE_USE starts (WARNING)
+    danger_s: float = 3.0  # ... this long -> DANGER
+    end_s: float = 1.0  # not seen this long -> it ends
+    max_age_s: float = 0.6  # a detection result older than this is not "seen now"
+
+
 class DrowsinessConfig(_Section):
     perclos_window_s: float = 60.0
     perclos_closed_openness: float = 0.2  # P80: eyes >= 80 % closed
@@ -462,6 +477,7 @@ class AppConfig(_Section):
     gaze_zones: GazeZonesConfig = Field(default_factory=GazeZonesConfig)
     distraction: DistractionConfig = Field(default_factory=DistractionConfig)
     face: FaceVisibilityConfig = Field(default_factory=FaceVisibilityConfig)
+    phone: PhoneConfig = Field(default_factory=PhoneConfig)
     drowsiness: DrowsinessConfig = Field(default_factory=DrowsinessConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)

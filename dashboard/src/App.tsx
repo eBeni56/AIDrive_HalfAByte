@@ -1,25 +1,30 @@
 import { CameraPanel } from "./components/CameraPanel";
 import { ChatPanel } from "./components/ChatPanel";
-import { Header } from "./components/Header";
-import { StatusPanel } from "./components/StatusPanel";
-import { STALE_MS } from "./config";
-import { useNow, useServer } from "./useServer";
+import { DriverHud } from "./components/DriverHud";
+import { Terminal } from "./components/Terminal";
+import { simLog } from "./log";
+import { useServer } from "./useServer";
 
 export function App() {
-  const { connected, driver, driverAt, gaze } = useServer();
-  const now = useNow();
-  const fresh = connected && driver != null && now - driverAt < STALE_MS ? driver : null;
-  const alarm = fresh && (fresh.summary.highest_severity === "DANGER" || fresh.summary.highest_severity === "CRITICAL");
+  const cameraLive = useServer();
 
   return (
-    <div className={`app${alarm ? " alarm" : ""}`}>
-      <Header connected={connected} driver={fresh} />
-      <CameraPanel
-        live={fresh != null}
-        calibrationMessage={fresh?.calibration.status === "CALIBRATING" ? fresh.calibration.message : null}
+    <div className="app">
+      <aside className="side">
+        <CameraPanel live={cameraLive} />
+        <ChatPanel />
+      </aside>
+      <Terminal
+        title="Simulation"
+        log={simLog}
+        legend={[
+          ["SIM", "sim", "input from the simulation"],
+          ["CAM", "cam", "where the driver looks (camera)"],
+          ["OK", "ok", "looked at the object in time"],
+          ["MISSED", "danger", "did not look in time"],
+        ]}
       />
-      <ChatPanel />
-      <StatusPanel driver={fresh} gaze={gaze} />
+      <DriverHud />
     </div>
   );
 }

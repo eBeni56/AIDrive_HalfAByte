@@ -72,6 +72,8 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
                 frame, t, latency_start=started, camera_fps=source.fps if not opts.video else None
             )
             frames += 1
+            while monitor.notes:
+                reporter.line(monitor.notes.pop(0))
             reporter.report(result.state)
             if writer is not None:
                 writer.write(result.state)

@@ -6,8 +6,8 @@ the camera client's gaze zone, translated to the simulator's regions, 10 times p
 gets the same, plus the latest `driver_state` and the chat messages.
 
 Files: `sim.py` parses the simulator's messages, `camera.py` parses the camera client's messages
-(and maps its gaze zone to a region), `server.py` routes each message to one of them and sends the
-answer. Tests: `python -m unittest -v` (`test_gaze.py`, `test_dashboard.py`). A malformed message is logged
+(and maps its gaze zone to a region), `attention.py` decides whether the driver looked at each simulator
+object in time, `server.py` routes each message to one of them and sends the answers. Tests: `python -m unittest -v` (`test_gaze.py`, `test_attention.py`, `test_dashboard.py`). A malformed message is logged
 as a warning and ignored; the connection stays open.
 
 ## Input 1: simulator
@@ -76,6 +76,38 @@ Where the mirrors and the road are (in gaze angles) is set in the camera client,
 `gaze.on_road_*` in `driver_monitor/config/driver_monitor.yaml`; its window overlay shows the live
 angles and zone. The simulator shows "No gaze data" by itself when no `gaze_update` arrives for 1.5 s.
 
+## Attention: did the driver look in time?
+
+`attention.py` puts every object of each `simulation_tick` into one of 8 zones around the ego car (pixels
+as sent: `x_px` + right, `y_px` + ahead; 1 m = 31.43 px; lane edge at ±55 px). When an object enters a zone,
+the driver has that zone's window to look at it: the gaze region (from the camera, `status` `ok` only) must
+equal the zone's name for 0.15 s (`LOOK_DWELL_S`) before the window runs out.
+
+| Zone | Where (`x_px`, `y_px`) | Window |
+|---|---|---|
+| `front_left` / `front_center` / `front_right` | x < -55 / -55..55 / > 55, 71 < y <= 943 | 0.5 s |
+| `side_left` / `side_right` (blind spots) | x < -55 / > 55, -157 <= y <= 71 | 1.0 s |
+| `mirror_left` / `mirror_right` | x < -55 / > 55, -943 <= y < -157 | 2.0 s |
+| `mirror_center` | -55..55, -943 <= y < -71 | 2.0 s |
+| none (no timer) | farther than 943 px (30 m), or overlapping the ego car | - |
+
+Looking already when the object enters counts from the entry. A new zone starts a new window (a running one
+is dropped). Zones, windows and the accepted gaze regions are the constants at the top of `attention.py`.
+The check runs on every tick and 20 times per second in between.
+
+Sent to the dashboard only:
+
+```json
+{"event": "attention_event", "timestamp": 1763640012.3, "t_s": 2.31, "kind": "noticed",
+ "object_id": "car_1", "type": "car", "zone": "mirror_left", "window_s": 2.0, "reaction_s": 0.42}
+{"event": "attention_summary", "timestamp": 1763640060.0, "duration_s": 60.0, "noticed_count": 4,
+ "missed_count": 3, "avg_reaction_s": 0.56, "missed": [{"t_s": 5.1, "object_id": "truck_1", "type": "truck", "zone": "front_right"}]}
+```
+
+`kind`: `appeared` (first seen in this run), `zone_change`, `noticed` (`reaction_s` set), `missed`.
+`zone` / `window_s` are `null` outside every zone. `t_s` is seconds since `simulation_started`. The summary
+comes at `simulation_ended`.
+
 ## Dashboard and chat
 
 The dashboard (`dashboard/`) sends this once after connecting:
@@ -85,8 +117,9 @@ The dashboard (`dashboard/`) sends this once after connecting:
 ```
 
 From then on it gets every `gaze_update` (as above), the latest `driver_state` exactly as the camera client
-sent it, `DASHBOARD_HZ` (default 10) times per second and only when a new one arrived, and every
-`chat_message`. Only dashboards get `driver_state` and `chat_message`; the simulator never does.
+sent it, `DASHBOARD_HZ` (default 10) times per second and only when a new one arrived, the simulator's
+`simulation_started` / `simulation_ended` as received, the attention messages (above), and every
+`chat_message`. Only dashboards get these; the simulator gets only `gaze_update`.
 
 The voice assistant (any client) puts a line into the dashboard's chat with:
 

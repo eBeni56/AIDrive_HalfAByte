@@ -229,6 +229,7 @@ __marimo__/
 
 # driver_monitor: downloaded model weights and JSON Lines recordings
 driver_monitor/models/*.task
+driver_monitor/models/*.tflite
 driver_monitor/models/*.part
 driver_monitor/recordings/
 *.jsonl

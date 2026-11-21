@@ -13,9 +13,11 @@ export function ChatPanel() {
 
   return (
     <section className="panel chat">
-      <div className="panel-title">Assistant</div>
+      <div className="panel-title">
+        <span>Assistant</span>
+      </div>
       <div className="chat-list">
-        {messages.length === 0 && <div className="chat-empty">The conversation with the assistant will appear here.</div>}
+        {messages.length === 0 && <div className="chat-empty">The conversation will appear here.</div>}
         {messages.map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
             <span className="who">{m.role === "assistant" ? "AI" : "Driver"}</span>
@@ -23,9 +25,6 @@ export function ChatPanel() {
           </div>
         ))}
         <div ref={end} />
-      </div>
-      <div className="chat-input">
-        <input disabled placeholder="Voice input coming soon" />
       </div>
     </section>
   );
