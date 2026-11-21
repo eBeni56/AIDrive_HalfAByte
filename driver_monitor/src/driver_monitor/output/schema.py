@@ -21,6 +21,7 @@ from driver_monitor.common.enums import (
     EyeState,
     EyeTrend,
     GazeDirection,
+    GazeZone,
     Horizontal,
     Intensity,
     MouthState,
@@ -96,6 +97,11 @@ class Eyes(_M):
     source: EyeSource = EyeSource.BOTH
     lid_lowered_by_gaze: bool = False
     last_blink: LastBlink | None = None
+    # this driver's normal opening while driving (learned in the first ~30 s after calibration; 1.0 = the
+    # calibrated open eye until then) and the current narrowing: 3 s median openness / normal
+    normal_openness: float = 1.0
+    normal_learned: bool = False
+    openness_ratio: float | None = None
 
 
 class Head(_M):
@@ -120,6 +126,8 @@ class Gaze(_M):
     eye_pitch_deg: float | None = None
     on_road: bool | None = None
     direction_for_s: float = 0.0
+    zone: GazeZone = GazeZone.UNKNOWN  # ROAD, REAR/LEFT/RIGHT_MIRROR, LEFT/RIGHT_SIDE, UP, DOWN, UNKNOWN
+    zone_for_s: float = 0.0
 
 
 class Mouth(_M):
@@ -131,8 +139,11 @@ class Mouth(_M):
 
 class Attention(_M):
     state: AttentionState = AttentionState.UNKNOWN
-    eyes_off_road_s: float = 0.0
+    zone: GazeZone = GazeZone.UNKNOWN
+    eyes_off_road_s: float = 0.0  # current glance away from the road (mirrors included)
+    glance_down_s: float = 0.0  # ... of which looking DOWN
     off_road_last_30s_s: float = 0.0
+    weighted_off_road_30s_s: float = 0.0  # down x1, sideways/up x0.5, mirrors x0 (cumulative rule)
     longest_glance_60s_s: float = 0.0
     glances_60s: int = 0
 
@@ -144,6 +155,7 @@ class Indicators(_M):
     mean_blink_duration_ms: float | None = None
     long_blinks_60s: int = 0
     mean_openness_60s: float | None = None
+    mean_openness_ratio_60s: float | None = None  # ... as a fraction of the driver's normal opening
     yawns_5min: int = 0
     head_nods_5min: int = 0
     head_falls_10min: int = 0
@@ -160,6 +172,8 @@ class HistoryWindow(_M):
     yawns: int = 0
     head_nods: int = 0
     head_falls: int = 0
+    narrowed_eyes: int = 0  # EYES_NARROWED episodes (eyes clearly narrower than normal) that ended
+    narrowed_eyes_s: float = 0.0
 
 
 class Drowsiness(_M):

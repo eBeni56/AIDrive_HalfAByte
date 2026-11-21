@@ -1,4 +1,4 @@
-"""Main loop: read frames -> DriverMonitor -> terminal / JSONL / preview window."""
+"""Main loop: read frames -> DriverMonitor -> terminal / JSONL / WebSocket / preview window."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from driver_monitor.config import AppConfig
 from driver_monitor.output.jsonl import JsonlWriter
 from driver_monitor.output.overlay import OverlayRenderer
 from driver_monitor.output.terminal import TerminalReporter
+from driver_monitor.output.ws_sender import WebSocketSender
 from driver_monitor.pipeline import DriverMonitor
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]  # driver_monitor/ (contains models/, config/)
@@ -35,10 +36,12 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
     reporter = TerminalReporter(cfg.output)
     reporter.print_json = opts.print_json
     writer = JsonlWriter(opts.json_path) if opts.json_path else None
+    sender = WebSocketSender(cfg.websocket) if cfg.websocket.enabled else None
     overlay = OverlayRenderer(mirror=True)
     reporter.line(
         f"driver_monitor: {source.describe()}"
         + (f", writing JSON Lines to {opts.json_path}" if opts.json_path else "")
+        + (f", streaming JSON to {cfg.websocket.url}" if sender else "")
     )
     if opts.calibrate and cfg.calibration.enabled:
         reporter.line(
@@ -64,6 +67,10 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
             reporter.report(result.state)
             if writer is not None:
                 writer.write(result.state)
+            if sender is not None:
+                sender.send(result.state, t)
+                for msg in sender.events():
+                    reporter.line(msg)
             if not opts.show_window:
                 continue
             cv2.imshow(WINDOW, overlay.render(frame, result))
@@ -88,6 +95,9 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
         monitor.close()
         if writer is not None:
             writer.close()
+        if sender is not None:
+            sender.close()
+            reporter.line(f"WebSocket: {sender.sent} messages sent, {sender.dropped} dropped.")
         if opts.show_window:
             cv2.destroyAllWindows()
     return 0

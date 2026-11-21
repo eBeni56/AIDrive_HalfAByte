@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from driver_monitor.common.enums import DetectionStatus, DrowsinessLevel, Severity
+from driver_monitor.common.enums import DetectionStatus, DrowsinessLevel, GazeZone, Severity
 from driver_monitor.common.timeseries import History, TimeWeightedWindow
 from driver_monitor.config import DistractionConfig, DrowsinessConfig, FaceVisibilityConfig
 from driver_monitor.detectors.base import Detection
@@ -30,14 +30,42 @@ def test_mirror_check_is_not_distraction() -> None:
     assert _distraction([(2.0, gaze(0)), (0.8, gaze(-34)), (3.0, gaze(0))]) == []
 
 
+def test_simulator_mirror_checks_are_not_distraction() -> None:
+    # left mirror (lower left of the screen), rear-view mirror (top centre), right mirror (lower right)
+    timeline = [(1.0, gaze(0)), (1.5, gaze(-22, -12)), (1.0, gaze(0)), (1.5, gaze(0, 15)), (1.0, gaze(0))]
+    timeline += [(2.5, gaze(24, -10)), (2.0, gaze(0))]
+    assert gaze(-22, -12).zone is GazeZone.LEFT_MIRROR
+    assert gaze(0, 15).zone is GazeZone.REAR_MIRROR
+    assert gaze(24, -10).zone is GazeZone.RIGHT_MIRROR
+    assert _distraction(timeline) == []
+
+
+def test_mirror_checks_do_not_add_up() -> None:
+    timeline = [(2.0, gaze(-22, -12)), (0.5, gaze(0))] * 12  # 24 s in the mirror within 30 s
+    assert _distraction(timeline) == []
+
+
+def test_looking_down_is_judged_much_faster_than_sideways() -> None:
+    assert gaze(5, -45).zone is GazeZone.DOWN and gaze(-30, -30).zone is GazeZone.DOWN
+    assert gaze(40, 0).zone is GazeZone.RIGHT_SIDE
+    assert _distraction([(1.0, gaze(0)), (1.0, gaze(5, -45)), (2.0, gaze(0))]) == []  # < 1.2 s down: ok
+    assert _distraction([(1.0, gaze(0)), (2.8, gaze(40)), (2.0, gaze(0))]) == []  # < 3 s sideways: ok
+    side = _distraction([(1.0, gaze(0)), (3.3, gaze(40)), (2.0, gaze(0))])
+    started = next(d for d in side if d.status is DetectionStatus.STARTED)
+    assert started.details["reason"] == "LONG_GLANCE" and started.details["zone"] == "RIGHT_SIDE"
+
+
 def test_long_glance_down_warning_then_danger() -> None:
     ds = _distraction([(1.0, gaze(0)), (4.2, gaze(5, -45)), (2.0, gaze(0))])
     started = next(d for d in ds if d.status is DetectionStatus.STARTED)
-    assert started.details["reason"] == "LONG_GLANCE" and started.severity is Severity.WARNING
+    assert started.details["reason"] == "LOOKING_DOWN" and started.severity is Severity.WARNING
     assert abs(started.started_t - 1.0) < 0.1
-    assert any(d.severity is Severity.DANGER for d in ds)
+    assert abs(started.started_t + started.duration_s - 2.2) < 0.1  # reported after 1.2 s down
+    danger = next(d for d in ds if d.severity is Severity.DANGER)
+    assert abs(danger.started_t + danger.duration_s - 3.0) < 0.1  # DANGER after 2 s down
     ended = ds[-1]
     assert ended.status is DetectionStatus.ENDED and ended.details["direction"] == "DOWN"
+    assert ended.details["zone"] == "DOWN"
 
 
 def test_closed_eyes_do_not_count_as_distraction() -> None:
@@ -48,7 +76,7 @@ def test_closed_eyes_do_not_count_as_distraction() -> None:
 
 
 def test_cumulative_short_glances() -> None:
-    timeline = [(1.7, gaze(25, -30)), (0.6, gaze(0))] * 8
+    timeline = [(0.9, gaze(0, -30)), (0.6, gaze(0))] * 16  # short looks at the phone, each < 1.2 s
     ds = _distraction(timeline)
     started = [d for d in ds if d.status is DetectionStatus.STARTED]
     assert started and started[0].details["reason"] == "CUMULATIVE"

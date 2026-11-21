@@ -26,6 +26,7 @@ class EyeStats:
     blink_count: int
     long_blinks: int
     warming_up: bool
+    mean_openness_ratio: float | None = None  # mean_openness / the driver's learned normal opening
 
 
 class EyeStatistics:
@@ -50,7 +51,7 @@ class EyeStatistics:
         )
         self._window.add(t, eyes.openness if valid else None)
 
-    def stats(self, closure: EyeClosureDetector, t: float) -> EyeStats:
+    def stats(self, closure: EyeClosureDetector, t: float, normal_openness: float = 1.0) -> EyeStats:
         c = self.cfg
         coverage = self._window.coverage_s()
         warming = coverage < c.min_coverage_s
@@ -62,4 +63,5 @@ class EyeStatistics:
         rate = len(blinks) / (elapsed / 60.0) if elapsed >= 20.0 else None
         mean_ms = 1000.0 * sum(blinks) / len(blinks) if blinks else None
         long_blinks = sum(1 for d in blinks if d >= self.closure_cfg.eyes_closed_s)
-        return EyeStats(perclos, coverage, mean_open, rate, mean_ms, len(blinks), long_blinks, warming)
+        ratio = mean_open / normal_openness if mean_open is not None and normal_openness > 0 else None
+        return EyeStats(perclos, coverage, mean_open, rate, mean_ms, len(blinks), long_blinks, warming, ratio)

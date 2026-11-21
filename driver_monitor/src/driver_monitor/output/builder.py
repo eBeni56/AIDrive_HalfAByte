@@ -131,7 +131,13 @@ def _eye(e: EyeReading | None) -> EyeReadingOut | None:
     )
 
 
-def eyes(e: EyesSignal, last_blink: tuple[float, float] | None) -> Eyes:
+def eyes(
+    e: EyesSignal,
+    last_blink: tuple[float, float] | None,
+    normal_openness: float = 1.0,
+    normal_learned: bool = False,
+    openness_ratio: float | None = None,
+) -> Eyes:
     lb = (
         LastBlink(ended_t=round(last_blink[0], 3), duration_ms=round(last_blink[1] * 1000.0))
         if last_blink
@@ -148,6 +154,9 @@ def eyes(e: EyesSignal, last_blink: tuple[float, float] | None) -> Eyes:
         source=e.source,
         lid_lowered_by_gaze=e.lid_lowered_by_gaze,
         last_blink=lb,
+        normal_openness=round(normal_openness, 2),
+        normal_learned=normal_learned,
+        openness_ratio=_r(openness_ratio),
     )
 
 
@@ -176,6 +185,8 @@ def gaze(g: GazeSignal) -> Gaze:
         eye_pitch_deg=_r(g.eye_pitch, 1),
         on_road=g.on_road,
         direction_for_s=round(g.direction_for_s, 2),
+        zone=g.zone,
+        zone_for_s=round(g.zone_for_s, 2),
     )
 
 
@@ -187,8 +198,11 @@ def attention(a: AttentionSnapshot, distracted: bool) -> Attention:
     state = AttentionState.DISTRACTED if distracted and a.state is not AttentionState.UNKNOWN else a.state
     return Attention(
         state=state,
+        zone=a.zone,
         eyes_off_road_s=round(a.eyes_off_road_s, 2),
+        glance_down_s=round(a.glance_down_s, 2),
         off_road_last_30s_s=round(a.off_road_window_s, 1),
+        weighted_off_road_30s_s=round(a.weighted_off_road_s, 1),
         longest_glance_60s_s=round(a.longest_glance_s, 2),
         glances_60s=a.glances,
     )
@@ -220,6 +234,8 @@ def drowsiness(
                 yawns=w.yawns,
                 head_nods=w.head_nods,
                 head_falls=w.head_falls,
+                narrowed_eyes=w.narrowed_eyes,
+                narrowed_eyes_s=round(w.narrowed_eyes_s, 1),
             )
             for w in fatigue.windows
         ],
@@ -230,6 +246,7 @@ def drowsiness(
             mean_blink_duration_ms=_r(e.mean_blink_duration_ms, 0),
             long_blinks_60s=e.long_blinks,
             mean_openness_60s=_r(e.mean_openness),
+            mean_openness_ratio_60s=_r(e.mean_openness_ratio),
             yawns_5min=yawns,
             head_nods_5min=nods,
             head_falls_10min=falls,

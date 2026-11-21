@@ -259,6 +259,15 @@ SCENARIOS: list[Scenario] = [
         ["eyes"],
     ),
     Scenario(
+        "eyes_narrowed",
+        "Eyes narrower than normal (heavy eyelids, early tiredness)",
+        "The eyes stay open but at ~78 % of this driver's normal opening (learned during the first 30 s of "
+        "driving, so narrow and wide eyes are judged alike). After 5 s: EYES_NARROWED and SLIGHTLY_DROWSY.",
+        warm(Script()).hold(14.0, openness=0.78),
+        [("narrowed for 12 s", at(74.0))],
+        ["eyes", "drowsiness"],
+    ),
+    Scenario(
         "tired_eyes",
         "Tired eyes over a minute",
         "No single dramatic event: for a minute the eyes are a bit heavy (70 %) and every blink is slow "
@@ -338,11 +347,24 @@ SCENARIOS: list[Scenario] = [
     ),
     Scenario(
         "mirror_left",
-        "Quick left-mirror check (normal, no detection)",
-        "Head turns 21 deg left and the eyes another 12 deg, for 0.8 s.",
-        warm(Script()).ramp(0.15, yaw=-21.0, eye_yaw=-12.0).hold(0.8).ramp(0.15, yaw=0.0, eye_yaw=0.0),
-        [("looking at the mirror", at(62.9))],
-        ["eyes", "gaze", "attention"],
+        "Left-mirror check in the simulator (normal, no detection)",
+        "The left mirror is in the lower left corner of the screen: head 14 deg left / 6 deg down, eyes another "
+        "8 deg left / 6 deg down, for 1.5 s. Zone LEFT_MIRROR, attention CHECKING_MIRROR - never distraction.",
+        warm(Script())
+        .ramp(0.15, yaw=-14.0, eye_yaw=-8.0, pitch=-6.0, eye_pitch=-6.0)
+        .hold(1.5)
+        .ramp(0.15, yaw=0.0, eye_yaw=0.0, pitch=0.0, eye_pitch=0.0),
+        [("looking at the mirror", at(63.2))],
+        ["gaze", "attention"],
+    ),
+    Scenario(
+        "look_side",
+        "Looking out of the side window (traffic, a side road)",
+        "Head 30 deg left, eyes 10 deg further, for 2.6 s. Looking sideways has a reason while driving: it is "
+        "only DISTRACTED after 3 s (DANGER after 5 s).",
+        warm(Script()).ramp(0.2, yaw=-30.0, eye_yaw=-10.0).hold(2.6).ramp(0.2, yaw=0.0, eye_yaw=0.0),
+        [("2.5 s to the side", at(64.7))],
+        ["gaze", "attention"],
     ),
     Scenario(
         "shoulder_right",
@@ -354,46 +376,39 @@ SCENARIOS: list[Scenario] = [
     ),
     Scenario(
         "rear_mirror",
-        "Looking up-right (rear-view mirror)",
-        "Head 14 deg right / 9 deg up, eyes 11 deg right / 8 deg up, for 0.7 s.",
+        "Rear-view mirror check in the simulator",
+        "The rear-view mirror is at the top centre of the screen: head 8 deg up, eyes 7 deg up, for 1.0 s.",
         warm(Script())
-        .ramp(0.2, yaw=14.0, pitch=9.5, eye_yaw=10.8, eye_pitch=7.8)
-        .hold(0.7)
+        .ramp(0.2, yaw=2.0, pitch=8.0, eye_pitch=7.0)
+        .hold(1.0)
         .ramp(0.2, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0),
-        [("in the mirror", at(62.8))],
+        [("in the mirror", at(62.9))],
         ["gaze", "attention"],
     ),
     Scenario(
         "look_down",
         "Looking down at a phone",
-        "Head 24 deg down, eyes another 21 deg down, eyelids lowered by the gaze. WARNING at 2 s, "
-        "DANGER at 3.5 s, ended when back on the road.",
+        "Head 24 deg down, eyes another 21 deg down, eyelids lowered by the gaze. There is no reason to look "
+        "down while driving: WARNING after 1.2 s, DANGER after 2 s, ended when back on the road.",
         warm(Script())
         .ramp(0.3, pitch=-24.5, eye_pitch=-21.5, openness=0.46, look_down=0.6, yaw=6.0)
         .hold(4.4)
         .ramp(0.3, pitch=0.0, eye_pitch=0.0, openness=1.0, look_down=0.0, yaw=0.0)
         .hold(1.5),
-        [("2.6 s down", at(64.9)), ("4.2 s down", at(66.5)), ("back on the road", on("DISTRACTED", "ENDED"))],
+        [("1.4 s down", at(63.6)), ("2.8 s down", at(65.0)), ("back on the road", on("DISTRACTED", "ENDED"))],
         ["eyes", "gaze", "attention"],
     ),
     Scenario(
         "cumulative",
-        "Many short glances (cumulative distraction)",
-        "Repeated 1.7 s glances down-right (radio) with 0.6 s back on the road.",
-        warm(Script())
-        .hold(1.7, yaw=18.0, pitch=-16.0, eye_yaw=9.0, eye_pitch=-15.0)
-        .hold(0.6, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0)
-        .hold(1.7, yaw=18.0, pitch=-16.0, eye_yaw=9.0, eye_pitch=-15.0)
-        .hold(0.6, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0)
-        .hold(1.7, yaw=18.0, pitch=-16.0, eye_yaw=9.0, eye_pitch=-15.0)
-        .hold(0.6, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0)
-        .hold(1.7, yaw=18.0, pitch=-16.0, eye_yaw=9.0, eye_pitch=-15.0)
-        .hold(0.6, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0)
-        .hold(1.7, yaw=18.0, pitch=-16.0, eye_yaw=9.0, eye_pitch=-15.0)
-        .hold(0.6, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0)
-        .hold(1.7, yaw=18.0, pitch=-16.0, eye_yaw=9.0, eye_pitch=-15.0)
-        .hold(0.6, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0)
-        .hold(1.7, yaw=18.0, pitch=-16.0, eye_yaw=9.0, eye_pitch=-15.0),
+        "Many short glances down (cumulative distraction)",
+        "Repeated 0.9 s glances down at the phone (each shorter than the 1.2 s limit) with 0.6 s back on the "
+        "road: the weighted off-road time in 30 s reaches 10 s.",
+        warm(Script()).repeat(
+            16,
+            lambda s: s.hold(0.9, pitch=-16.0, eye_pitch=-15.0).hold(
+                0.6, yaw=0.0, pitch=0.0, eye_yaw=0.0, eye_pitch=0.0
+            ),
+        ),
         [("cumulative limit reached", on("DISTRACTED", "STARTED"))],
         ["gaze", "attention"],
     ),

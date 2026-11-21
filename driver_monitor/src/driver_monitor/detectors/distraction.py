@@ -1,11 +1,14 @@
-"""DISTRACTED: eyes open but pointed away from the road for too long.
+"""DISTRACTED: eyes open but pointed away from the road for too long - with different limits per zone.
 
-LONG_GLANCE  one off-road glance >= long_glance_s (2 s, NHTSA-style single-glance limit) -> WARNING,
-             >= danger_glance_s (3.5 s) -> DANGER
-CUMULATIVE   >= cumulative_s (10 s) off-road within the last cumulative_window_s (30 s) -> WARNING
-             (many short glances, e.g. fiddling with the radio)
-Ends when the gaze has been back on the road for end_on_road_s and the cumulative time is below
-cumulative_end_s. Mirror checks (< 2 s) never trigger it.
+LOOKING_DOWN  one glance with >= down_warning_s (1.2 s) spent looking DOWN (phone, lap, console) -> WARNING,
+              >= down_danger_s (2 s) -> DANGER. There is no reason to look down while driving.
+LONG_GLANCE   one glance away from the road >= side_warning_s (3 s) -> WARNING, >= side_danger_s (5 s)
+              -> DANGER. Sideways (traffic, side roads), up, or STARING at a mirror; normal mirror checks
+              and short looks to the side never trigger it.
+CUMULATIVE    >= cumulative_s (10 s) of WEIGHTED off-road time within cumulative_window_s (30 s): down
+              counts fully, sideways/up half, mirrors not at all (many short glances at the phone/radio).
+Ends when the gaze has been back on the road for end_on_road_s and the weighted cumulative time is below
+cumulative_end_s.
 """
 
 from __future__ import annotations
@@ -32,20 +35,22 @@ class DistractionDetector:
 
     def update(self, att: AttentionSnapshot, t: float) -> None:
         c = self.cfg
-        long = att.eyes_off_road_s >= c.long_glance_s
-        cumulative = att.off_road_window_s >= c.cumulative_s
+        down = att.glance_down_s >= c.down_warning_s
+        long = att.eyes_off_road_s >= c.side_warning_s
+        cumulative = att.weighted_off_road_s >= c.cumulative_s
         if not self.tracker.is_active:
-            if not (long or cumulative):
+            if not (down or long or cumulative):
                 return
-            self._reason = "LONG_GLANCE" if long else "CUMULATIVE"
+            self._reason = "LOOKING_DOWN" if down else "LONG_GLANCE" if long else "CUMULATIVE"
             self._max_glance = att.eyes_off_road_s
-            started = t - att.eyes_off_road_s if long else t
+            started = t - att.eyes_off_road_s if (down or long) else t
             self.tracker.start(t, started, Severity.WARNING, {})
         self._max_glance = max(self._max_glance, att.eyes_off_road_s)
 
         g = att.last_off_road_gaze
         details: dict[str, object] = {
             "reason": self._reason,
+            "zone": g.zone.value if g else None,
             "direction": g.direction.value if g else None,
             "horizontal": g.horizontal.value if g else None,
             "vertical": g.vertical.value if g else None,
@@ -55,22 +60,26 @@ class DistractionDetector:
             "head_yaw_deg": r(g.head_yaw, 1) if g else None,
             "head_pitch_deg": r(g.head_pitch, 1) if g else None,
             "glance_s": r(att.eyes_off_road_s),
+            "glance_down_s": r(att.glance_down_s),
             "longest_glance_s": r(self._max_glance),
-            "long_glance_threshold_s": c.long_glance_s,
-            "danger_threshold_s": c.danger_glance_s,
+            "down_threshold_s": c.down_warning_s,
+            "side_threshold_s": c.side_warning_s,
             "off_road_last_30s_s": r(att.off_road_window_s, 1),
+            "weighted_off_road_30s_s": r(att.weighted_off_road_s, 1),
             "cumulative_threshold_s": c.cumulative_s,
         }
         ended = (
             att.state is AttentionState.ATTENTIVE
             and att.on_road_for_s >= c.end_on_road_s
-            and att.off_road_window_s < c.cumulative_end_s
+            and att.weighted_off_road_s < c.cumulative_end_s
         )
         if ended:
             self.tracker.end(t, t - att.on_road_for_s, details)
             return
-        severity = Severity.DANGER if att.eyes_off_road_s >= c.danger_glance_s else Severity.WARNING
-        self.tracker.update(t, details, severity)
+        danger = att.glance_down_s >= c.down_danger_s or att.eyes_off_road_s >= c.side_danger_s
+        if down and self._reason != "LOOKING_DOWN":  # a later look down within the same episode
+            self._reason = details["reason"] = "LOOKING_DOWN"
+        self.tracker.update(t, details, Severity.DANGER if danger else Severity.WARNING)
 
     def emit(self) -> list[Detection]:
         return self.tracker.emit()

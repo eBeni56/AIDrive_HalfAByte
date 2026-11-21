@@ -6,6 +6,8 @@ are alarmed instantly by their own detections; for the level they are only evide
 evidence (0..1 each, 0.25 ~ slight, 0.5 ~ drowsy, 0.75 ~ very drowsy)
   - sliding 60 s eye statistics: HIGH_PERCLOS, HEAVY_EYELIDS, SLOW_BLINKS, FREQUENT_LONG_BLINKS
     (they fall away by themselves once the eyes behave normally again)
+  - NARROWED_EYES: while EYES_NARROWED is active (eyes clearly narrower than this driver's normal):
+    ~slightly drowsy, more when narrower / longer (the episode also enters the fatigue ledger when it ends)
   - RECENT_EVENTS: the decaying fatigue load (FatigueLedger, half-life 5 min) of every eye closure
     >= 0.5 s (weighted by its duration), head falls, nods and yawns. Two patterns, both drowsiness:
       acute   one long closure: alarmed instantly (MICROSLEEP CRITICAL), weighs heavily, then fades
@@ -35,6 +37,7 @@ _EVENT_NAMES = {
     "HEAD_NOD": "HEAD_NODS",
     "YAWN": "YAWNING",
     "EYES_CLOSED": "LONG_EYE_CLOSURES",
+    "EYES_NARROWED": "NARROWED_EYES",
 }
 __all__ = ["DrowsinessEstimator", "DrowsinessInputs", "DrowsinessState", "curve"]
 
@@ -43,6 +46,8 @@ __all__ = ["DrowsinessEstimator", "DrowsinessInputs", "DrowsinessState", "curve"
 class DrowsinessInputs:
     eye: EyeStats
     fatigue: FatigueSnapshot
+    narrowed_ratio: float | None = None  # set while EYES_NARROWED is active (ratio to the normal opening)
+    narrowed_for_s: float = 0.0
 
 
 @dataclass(slots=True)
@@ -80,8 +85,12 @@ class DrowsinessEstimator:
         ev: dict[str, float] = {}
         if e.perclos is not None:
             ev["HIGH_PERCLOS"] = curve(e.perclos, c.perclos_curve)
-        if e.mean_openness is not None:
-            ev["HEAVY_EYELIDS"] = curve(e.mean_openness, c.openness_curve)
+        rel = e.mean_openness_ratio if e.mean_openness_ratio is not None else e.mean_openness
+        if rel is not None:
+            ev["HEAVY_EYELIDS"] = curve(rel, c.openness_curve)
+        if x.narrowed_ratio is not None:
+            bonus = c.narrowed_long_bonus if x.narrowed_for_s >= c.narrowed_long_s else 0.0
+            ev["NARROWED_EYES"] = min(1.0, curve(x.narrowed_ratio, c.narrowed_curve) + bonus)
         if e.mean_blink_duration_ms is not None and e.blink_count >= 3:
             ev["SLOW_BLINKS"] = curve(e.mean_blink_duration_ms, c.blink_duration_curve)
         ev["FREQUENT_LONG_BLINKS"] = curve(e.long_blinks, c.long_blink_curve)

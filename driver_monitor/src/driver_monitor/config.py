@@ -118,10 +118,40 @@ class AlmostClosedConfig(_Section):
     end_after_s: float = 1.0
 
 
+class EyeBaselineConfig(_Section):
+    """This driver's NORMAL eye opening while driving, learned right after calibration.
+
+    Calibration asks for "eyes open normally", but people often open them wider while staring at the camera,
+    and eyes differ a lot between people. So every "narrowed" / "heavy eyelids" threshold is a RATIO to
+    this learned value - nothing depends on the absolute size of anyone's eyes.
+    Learned from the first `learn_s` seconds of clean samples (eyes open, head near straight ahead, not
+    looking down, smiling or yawning, no blink); until then the calibrated open eye (1.0) is used.
+    """
+
+    learn_s: float = 30.0
+    percentile: float = 75.0  # robust "normal": ignores blinks and short narrowing in the learning period
+    max_head_angle_deg: float = 15.0
+    after_blink_s: float = 0.25  # samples this soon after a closure are skipped (lids still moving)
+
+
+class NarrowedEyesConfig(_Section):
+    """EYES_NARROWED: eyes clearly narrower than this driver's normal for a while (heavy eyelids, a typical
+    early tiredness sign) - milder than EYES_ALMOST_CLOSED. Ratios are to the learned personal baseline."""
+
+    window_s: float = 3.0  # median of the clean samples in this window (blinks excluded)
+    min_valid_fraction: float = 0.5  # of the window, else the ratio is unknown
+    enter_ratio: float = 0.85
+    exit_ratio: float = 0.90
+    start_after_s: float = 5.0
+    end_after_s: float = 2.0
+    warning_ratio: float = 0.70  # narrower than this -> WARNING (else INFO) ...
+    warning_after_s: float = 20.0  # ... or narrowed for this long
+
+
 class TiredEyesConfig(_Section):
     window_s: float = 60.0
     min_coverage_s: float = 30.0
-    heavy_eyelids_below: float = 0.75  # mean openness (eyes not closed) in the window
+    heavy_eyelids_below: float = 0.80  # mean openness in the window as a fraction of the driver's normal
     slow_blink_ms: float = 300.0
     min_blinks_for_duration: int = 3
     long_blinks: int = 3
@@ -226,12 +256,69 @@ class GazeConfig(_Section):
     on_road_hysteresis_deg: float = 3.0
 
 
+class ZoneBox(_Section):
+    """A rectangle of gaze angles (head + eyes, relative to the calibrated straight-ahead)."""
+
+    yaw_min_deg: float
+    yaw_max_deg: float
+    pitch_min_deg: float
+    pitch_max_deg: float
+
+    def contains(self, yaw: float, pitch: float, margin: float = 0.0) -> bool:
+        return (
+            self.yaw_min_deg - margin <= yaw <= self.yaw_max_deg + margin
+            and self.pitch_min_deg - margin <= pitch <= self.pitch_max_deg + margin
+        )
+
+
+class GazeZonesConfig(_Section):
+    """Where the mirrors are. Gaze angles in deg: yaw - left / + right, pitch - down / + up, relative to the
+    straight-ahead look recorded during calibration. A mirror box is checked before the road box.
+
+    Defaults: a driving SIMULATOR (driver ~60-80 cm from the screen, rear-view mirror inset at the top
+    centre of the screen, side mirrors in the lower left / right corners). Adjust to the actual screen
+    layout; the overlay shows the live gaze angles and zone. For a real left-hand-drive car something like:
+      rear_mirror  yaw 18..45   pitch 3..30
+      left_mirror  yaw -70..-30 pitch -25..5
+      right_mirror yaw 45..85   pitch -25..5
+    The road box itself is gaze.on_road_*; anything below it is DOWN, beside it LEFT_SIDE / RIGHT_SIDE,
+    above it UP.
+    """
+
+    rear_mirror: ZoneBox = Field(
+        default_factory=lambda: ZoneBox(
+            yaw_min_deg=-12.0, yaw_max_deg=12.0, pitch_min_deg=8.0, pitch_max_deg=25.0
+        )
+    )
+    left_mirror: ZoneBox = Field(
+        default_factory=lambda: ZoneBox(
+            yaw_min_deg=-38.0, yaw_max_deg=-12.0, pitch_min_deg=-25.0, pitch_max_deg=-3.0
+        )
+    )
+    right_mirror: ZoneBox = Field(
+        default_factory=lambda: ZoneBox(
+            yaw_min_deg=12.0, yaw_max_deg=38.0, pitch_min_deg=-25.0, pitch_max_deg=-3.0
+        )
+    )
+    hysteresis_deg: float = 2.0  # a zone is kept until the gaze is this far outside its box
+
+
 class DistractionConfig(_Section):
-    long_glance_s: float = 2.0
-    danger_glance_s: float = 3.5
+    """Different rules per gaze zone. A driver has reasons to look left/right (traffic, side roads) and at
+    the mirrors, but no reason to look DOWN (phone, lap, console): that is judged much faster."""
+
+    down_warning_s: float = 1.2  # one glance with this much time DOWN -> WARNING
+    down_danger_s: float = 2.0
+    side_warning_s: float = 3.0  # one glance away from the road (sideways, up, or staring at a mirror)
+    side_danger_s: float = 5.0
+    # Many short glances: weighted off-road seconds in the window (DOWN counts fully, sideways/up half,
+    # mirror checks not at all).
     cumulative_window_s: float = 30.0
     cumulative_s: float = 10.0
     cumulative_end_s: float = 8.0
+    down_weight: float = 1.0
+    side_weight: float = 0.5
+    mirror_weight: float = 0.0
     end_on_road_s: float = 1.0
     stats_window_s: float = 60.0
     min_glance_s: float = 0.2  # shorter off-road blips are not counted as glances
@@ -290,10 +377,21 @@ class DrowsinessConfig(_Section):
         default_factory=lambda: [(0.0, 0.0), (1.0, 0.3), (2.0, 0.55), (3.0, 0.7), (4.0, 0.85)]
     )
     history_windows_s: list[float] = Field(default_factory=lambda: [60.0, 300.0, 900.0])
+    # Narrowed eyes (EYES_NARROWED, ratio to the driver's normal opening): evidence while it lasts
+    # (0.3 = slightly drowsy, ~0.5 = drowsy), a bonus when it lasts long, and a fatigue event when it ends
+    # (weight grows with its duration) so that repeated episodes stack up like closures do.
+    narrowed_curve: list[tuple[float, float]] = Field(
+        default_factory=lambda: [(0.85, 0.3), (0.75, 0.4), (0.65, 0.5), (0.55, 0.6)]
+    )
+    narrowed_long_s: float = 30.0
+    narrowed_long_bonus: float = 0.15
+    narrowed_weight_per_min: float = 0.5
+    narrowed_max_weight: float = 1.0
     # piecewise-linear maps indicator value -> evidence 0..1 (0.25 slight, 0.5 drowsy, 0.75 very)
     perclos_curve: list[tuple[float, float]] = Field(
         default_factory=lambda: [(0.04, 0.0), (0.08, 0.25), (0.15, 0.5), (0.25, 0.75), (0.40, 1.0)]
     )
+    # 60 s mean openness as a fraction of the driver's learned normal opening
     openness_curve: list[tuple[float, float]] = Field(
         default_factory=lambda: [(0.85, 0.0), (0.75, 0.25), (0.65, 0.5), (0.50, 0.75), (0.35, 1.0)]
     )
@@ -317,6 +415,22 @@ class OutputConfig(_Section):
     json_print_interval_s: float = 1.0
 
 
+class WebSocketConfig(_Section):
+    """Streams every driver_state JSON message to a WebSocket server while the camera runs.
+
+    The address normally comes from config/driver_monitor.yaml (loaded automatically) or any --config file.
+    The sender runs in its own thread: a missing or slow server never slows down the camera loop; the program
+    keeps reconnecting and, while disconnected or behind, only the newest messages are kept.
+    """
+
+    enabled: bool = True
+    url: str = "ws://localhost:8765"
+    max_rate_hz: float = 0.0  # 0 = every processed frame (~30/s); e.g. 10 = at most 10 messages per second
+    reconnect_s: float = 2.0  # wait between connection attempts
+    connect_timeout_s: float = 3.0
+    queue_size: int = 30  # messages buffered while sending is slower than the camera (oldest dropped)
+
+
 class AppConfig(_Section):
     camera: CameraConfig = Field(default_factory=CameraConfig)
     landmarker: LandmarkerConfig = Field(default_factory=LandmarkerConfig)
@@ -325,17 +439,21 @@ class AppConfig(_Section):
     eyes: EyesConfig = Field(default_factory=EyesConfig)
     eye_closure: EyeClosureConfig = Field(default_factory=EyeClosureConfig)
     almost_closed: AlmostClosedConfig = Field(default_factory=AlmostClosedConfig)
+    eye_baseline: EyeBaselineConfig = Field(default_factory=EyeBaselineConfig)
+    narrowed_eyes: NarrowedEyesConfig = Field(default_factory=NarrowedEyesConfig)
     tired_eyes: TiredEyesConfig = Field(default_factory=TiredEyesConfig)
     mouth: MouthConfig = Field(default_factory=MouthConfig)
     yawn: YawnConfig = Field(default_factory=YawnConfig)
     nod: NodConfig = Field(default_factory=NodConfig)
     head_falling: HeadFallingConfig = Field(default_factory=HeadFallingConfig)
     gaze: GazeConfig = Field(default_factory=GazeConfig)
+    gaze_zones: GazeZonesConfig = Field(default_factory=GazeZonesConfig)
     distraction: DistractionConfig = Field(default_factory=DistractionConfig)
     face: FaceVisibilityConfig = Field(default_factory=FaceVisibilityConfig)
     drowsiness: DrowsinessConfig = Field(default_factory=DrowsinessConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
+    websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -346,6 +464,9 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
         else:
             out[key] = value
     return out
+
+
+DEFAULT_CONFIG_FILE = Path(__file__).resolve().parents[2] / "config" / "driver_monitor.yaml"
 
 
 def load_config(path: str | Path | None = None) -> AppConfig:

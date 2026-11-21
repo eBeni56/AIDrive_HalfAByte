@@ -122,6 +122,10 @@ class TimeWeightedWindow:
         below = sum(i.end - i.start for i in self._intervals if i.value <= threshold)
         return below / total
 
+    def weighted_sum(self) -> float:
+        """Integral of the values over time (e.g. weighted seconds off the road)."""
+        return sum(i.value * (i.end - i.start) for i in self._intervals)
+
     def mean_above(self, threshold: float) -> float | None:
         """Time-weighted mean of the values strictly above `threshold` (e.g. openness of non-closed eyes)."""
         num = den = 0.0

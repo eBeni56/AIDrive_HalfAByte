@@ -3,7 +3,8 @@
 Per frame, in this order (later steps may use earlier results):
   1 features   MediaPipe landmarks/blendshapes/matrix -> EAR, MAR, iris, head angles ...
   2 signals    head (relative, smoothed) -> eyes (openness, state) -> gaze (head + eyes) -> mouth
-  3 detectors  eye closure/microsleep -> yawn -> eyes almost closed -> head nod -> head falling
+  3 detectors  eye closure/microsleep -> yawn -> eyes almost closed -> personal eye baseline + eyes
+               narrowed -> head nod -> head falling
                -> attention + distraction -> face visibility -> eye stats + tired eyes
                -> fatigue ledger (events of this frame) -> drowsiness
   4 output     DriverState (summary, quality, calibration, signals, windowed state, detections)
@@ -30,6 +31,7 @@ from driver_monitor.detectors.eye_closure import EyeClosureDetector
 from driver_monitor.detectors.face_visibility import FaceVisibilityDetector
 from driver_monitor.detectors.head_falling import HeadFallingDetector
 from driver_monitor.detectors.head_nod import HeadNodDetector
+from driver_monitor.detectors.narrowed import EyesNarrowedDetector
 from driver_monitor.detectors.tired_eyes import TiredEyesDetector
 from driver_monitor.detectors.yawn import YawnDetector
 from driver_monitor.output import builder
@@ -42,6 +44,7 @@ from driver_monitor.signals.head import HeadPoseProcessor, HeadSignal
 from driver_monitor.signals.mouth import MouthProcessor, MouthSignal
 from driver_monitor.state.attention import AttentionTracker
 from driver_monitor.state.drowsiness import DrowsinessEstimator, DrowsinessInputs
+from driver_monitor.state.eye_baseline import EyeBaseline
 from driver_monitor.state.eye_stats import EyeStatistics
 from driver_monitor.state.fatigue import FatigueLedger
 
@@ -78,13 +81,15 @@ class DriverMonitor:
         # signals
         self.head_proc = HeadPoseProcessor(cfg.pose)
         self.eye_proc = EyeSignalProcessor(cfg.eyes)
-        self.gaze_est = GazeEstimator(cfg.gaze)
+        self.gaze_est = GazeEstimator(cfg.gaze, cfg.gaze_zones)
         self.mouth_proc = MouthProcessor(cfg.mouth)
         # state + detectors
         d = cfg.drowsiness
         self.closure = EyeClosureDetector(cfg.eye_closure, d.microsleep_window_s)
         self.yawn = YawnDetector(cfg.yawn, d.yawn_window_s)
         self.almost = EyesAlmostClosedDetector(cfg.almost_closed, cfg.eyes, cfg.eye_closure)
+        self.baseline = EyeBaseline(cfg.eye_baseline, cfg.narrowed_eyes)
+        self.narrowed = EyesNarrowedDetector(cfg.narrowed_eyes)
         self.nod = HeadNodDetector(cfg.nod)
         self.falling = HeadFallingDetector(cfg.head_falling)
         self.attention = AttentionTracker(cfg.distraction)
@@ -114,6 +119,8 @@ class DriverMonitor:
             self.closure,
             self.yawn,
             self.almost,
+            self.baseline,
+            self.narrowed,
             self.nod,
             self.falling,
             self.attention,
@@ -186,6 +193,8 @@ class DriverMonitor:
             self.closure.update(eyes, head, falling_before, t)
             self.yawn.update(mouth, eyes, head.pitch if head.valid else None, t)
             self.almost.update(eyes, self.yawn.active, t)
+            ratio = self.baseline.update(eyes, head, self.yawn.active, t)
+            self.narrowed.update(ratio, self.baseline.value, self.baseline.learned, t)
             self.nod.update(head, eyes, t)
             self.falling.update(
                 head,
@@ -199,12 +208,13 @@ class DriverMonitor:
             self.distraction.update(att, t)
             self.face_vis.update(face, eyes.state, self.falling.active, self.head_proc.history, t)
             self.eye_stats.update(eyes, t)
-            stats = self.eye_stats.stats(self.closure, t)
+            stats = self.eye_stats.stats(self.closure, t, self.baseline.value)
             self.tired.update(stats, t)
             for det in (
                 self.closure,
                 self.yawn,
                 self.almost,
+                self.narrowed,
                 self.nod,
                 self.falling,
                 self.distraction,
@@ -215,12 +225,21 @@ class DriverMonitor:
             # this frame's events (microsleeps, nods, falls, yawns) -> decaying fatigue load
             self.fatigue.ingest(detections, t)
             fatigue = self.fatigue.snapshot(t)
-            dstate = self.drowsiness.update(DrowsinessInputs(stats, fatigue), t)
+            narrowed = self.narrowed.active
+            dstate = self.drowsiness.update(
+                DrowsinessInputs(
+                    stats,
+                    fatigue,
+                    self.baseline.ratio if narrowed else None,
+                    self.narrowed.duration_s if narrowed else 0.0,
+                ),
+                t,
+            )
             self.drowsy.update(dstate, t)
             detections.extend(self.drowsy.emit())
         else:
             att = self.attention.update(GazeSignal(), t)
-            stats = self.eye_stats.stats(self.closure, t)
+            stats = self.eye_stats.stats(self.closure, t, self.baseline.value)
             fatigue = self.fatigue.snapshot(t)
             dstate = self.drowsiness.update(DrowsinessInputs(stats, fatigue), t)
 
@@ -263,7 +282,13 @@ class DriverMonitor:
                 camera_fps,
             ),
             calibration=cal,
-            eyes=builder.eyes(eyes, self.closure.last_blink),
+            eyes=builder.eyes(
+                eyes,
+                self.closure.last_blink,
+                self.baseline.value,
+                self.baseline.learned,
+                self.baseline.ratio,
+            ),
             head=builder.head(head),
             gaze=builder.gaze(gaze),
             mouth=builder.mouth(mouth),

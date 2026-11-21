@@ -34,6 +34,7 @@ class DetectionType(StrEnum):
     EYES_CLOSED = "EYES_CLOSED"
     MICROSLEEP = "MICROSLEEP"
     EYES_ALMOST_CLOSED = "EYES_ALMOST_CLOSED"
+    EYES_NARROWED = "EYES_NARROWED"
     TIRED_EYES = "TIRED_EYES"
     YAWN = "YAWN"
     HEAD_NOD = "HEAD_NOD"
@@ -103,6 +104,24 @@ class GazeDirection(StrEnum):
         return GazeDirection(f"{v.value}_{h.value}")
 
 
+class GazeZone(StrEnum):
+    """Where the driver looks (config: gaze_zones + gaze.on_road_*)."""
+
+    ROAD = "ROAD"
+    REAR_MIRROR = "REAR_MIRROR"
+    LEFT_MIRROR = "LEFT_MIRROR"
+    RIGHT_MIRROR = "RIGHT_MIRROR"
+    LEFT_SIDE = "LEFT_SIDE"
+    RIGHT_SIDE = "RIGHT_SIDE"
+    UP = "UP"
+    DOWN = "DOWN"
+    UNKNOWN = "UNKNOWN"
+
+    @property
+    def is_mirror(self) -> bool:
+        return self in (GazeZone.REAR_MIRROR, GazeZone.LEFT_MIRROR, GazeZone.RIGHT_MIRROR)
+
+
 class Intensity(StrEnum):
     NONE = "NONE"
     SLIGHT = "SLIGHT"
@@ -120,6 +139,7 @@ class MouthState(StrEnum):
 
 class AttentionState(StrEnum):
     ATTENTIVE = "ATTENTIVE"
+    CHECKING_MIRROR = "CHECKING_MIRROR"
     GLANCING_AWAY = "GLANCING_AWAY"
     DISTRACTED = "DISTRACTED"
     UNKNOWN = "UNKNOWN"

@@ -13,8 +13,9 @@ from driver_monitor.common.enums import (
     Intensity,
     Vertical,
 )
+from driver_monitor.config import GazeConfig, GazeZonesConfig
 from driver_monitor.signals.eyes import EyesSignal
-from driver_monitor.signals.gaze import GazeSignal
+from driver_monitor.signals.gaze import GazeSignal, ZoneClassifier
 from driver_monitor.signals.head import HeadSignal
 from driver_monitor.signals.mouth import MouthSignal
 
@@ -75,8 +76,21 @@ def gaze(yaw: float, pitch: float = 0.0, on_road: bool | None = None) -> GazeSig
         on_road = abs(yaw) <= 20 and -15 <= pitch <= 15
     h = Horizontal.LEFT if yaw <= -12 else Horizontal.RIGHT if yaw >= 12 else Horizontal.CENTER
     v = Vertical.DOWN if pitch <= -10 else Vertical.UP if pitch >= 12 else Vertical.CENTER
+    zone = ZoneClassifier(GazeConfig(), GazeZonesConfig()).classify(yaw, pitch, on_road)
     return GazeSignal(
-        GazeDirection.combine(h, v), h, v, Intensity.MODERATE, yaw, pitch, yaw, pitch, 0.0, 0.0, on_road, 0.0
+        GazeDirection.combine(h, v),
+        h,
+        v,
+        Intensity.MODERATE,
+        yaw,
+        pitch,
+        yaw,
+        pitch,
+        0.0,
+        0.0,
+        on_road,
+        0.0,
+        zone,
     )
 
 

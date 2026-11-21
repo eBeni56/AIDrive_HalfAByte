@@ -10,6 +10,8 @@ Every eye closure >= 0.5 s is an event weighted by its DURATION (closure_weight_
   acute    one long closure weighs a lot at once, then fades while the driver stays alert
   chronic  frequent shorter closures (long blinks) weigh little each, but stack up while they keep coming
 A running microsleep is updated every frame, so its weight grows while the eyes stay shut.
+An EYES_NARROWED episode (heavy eyelids) is added when it ends, weighted by its duration (0.5 per minute,
+at most 1.0), so repeated episodes stack up as well.
 
 The ledger also keeps per-window counts (last 1 / 5 / 15 min) of long eye closures, microsleeps, total
 closed time, yawns, nods and head falls for the JSON history. Events come from the detection stream
@@ -39,9 +41,11 @@ def curve(x: float, points: list[tuple[float, float]]) -> float:
 @dataclass(slots=True)
 class FatigueEvent:
     t: float
-    kind: str  # MICROSLEEP | HEAD_FALL | HEAD_NOD | YAWN | EYES_CLOSED (long closure that reopened < 1 s)
+    # MICROSLEEP | HEAD_FALL | HEAD_NOD | YAWN | EYES_CLOSED (long closure that reopened < 1 s)
+    # | EYES_NARROWED (eyes clearly narrower than normal for a while)
+    kind: str
     weight: float
-    closed_s: float = 0.0  # eye-closure duration (closures only)
+    closed_s: float = 0.0  # eye-closure duration (closures) / episode duration (EYES_NARROWED)
 
 
 @dataclass(slots=True)
@@ -53,6 +57,8 @@ class WindowCounts:
     yawns: int = 0
     head_nods: int = 0
     head_falls: int = 0
+    narrowed_eyes: int = 0  # EYES_NARROWED episodes that ended in the window
+    narrowed_eyes_s: float = 0.0
 
 
 @dataclass(slots=True)
@@ -74,8 +80,11 @@ class FatigueLedger:
         self._open_microsleep = None
 
     def _add(self, t: float, kind: str, closed_s: float = 0.0) -> FatigueEvent:
+        c = self.cfg
         if kind in ("EYES_CLOSED", "MICROSLEEP"):
-            weight = curve(closed_s, self.cfg.closure_weight_curve)
+            weight = curve(closed_s, c.closure_weight_curve)
+        elif kind == "EYES_NARROWED":  # closed_s holds the episode duration here
+            weight = min(c.narrowed_weight_per_min * closed_s / 60.0, c.narrowed_max_weight)
         else:
             weight = self.cfg.event_weights.get(kind, 0.0)
         ev = FatigueEvent(t, kind, weight, closed_s)
@@ -109,6 +118,8 @@ class FatigueLedger:
                 self._add(t, "HEAD_FALL")
             elif kind is DetectionType.YAWN and status is DetectionStatus.ENDED:
                 self._add(t, "YAWN")
+            elif kind is DetectionType.EYES_NARROWED and status is DetectionStatus.ENDED:
+                self._add(t, "EYES_NARROWED", d.duration_s)  # fades from its end on
         self.events = [e for e in self.events if t - e.t <= self._keep_s or e is self._open_microsleep]
 
     def snapshot(self, t: float) -> FatigueSnapshot:
@@ -133,5 +144,8 @@ class FatigueLedger:
                     wc.head_nods += 1
                 elif e.kind == "HEAD_FALL":
                     wc.head_falls += 1
+                elif e.kind == "EYES_NARROWED":
+                    wc.narrowed_eyes += 1
+                    wc.narrowed_eyes_s += e.closed_s
             windows.append(wc)
         return FatigueSnapshot(sum(by_kind.values()), by_kind, windows)

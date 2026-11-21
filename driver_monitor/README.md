@@ -16,14 +16,28 @@ uv run python tools/download_model.py     # downloads models/face_landmarker.tas
 uv run python -m driver_monitor           # opens the camera window and prints detections
 ```
 
+While it runs, every `driver_state` JSON message is also **streamed to a WebSocket** (one text message per
+processed frame). The address is in [config/driver_monitor.yaml](config/driver_monitor.yaml) (`websocket.url`,
+default `ws://localhost:8765`), which is loaded automatically. If no server is listening, the monitor keeps
+running and reconnects every 2 s. To see the stream without the simulator, start the test receiver in a second
+terminal:
+
+```powershell
+uv run python tools/ws_receiver.py          # listens on ws://localhost:8765, prints one summary line per second
+uv run python tools/ws_receiver.py --full   # prints every JSON message
+```
+
 Useful options:
 
 ```powershell
-uv run python -m driver_monitor --camera 1             # another camera
+uv run python -m driver_monitor --ws ws://192.168.1.20:9000/driver   # stream to another address (overrides the config)
+uv run python -m driver_monitor --no-ws                              # do not stream
+uv run python -m driver_monitor --list-cameras         # show the cameras and the FPS each really delivers
+uv run python -m driver_monitor --camera 0             # pick a camera (default 1 = external USB camera, falls back to 0)
 uv run python -m driver_monitor --json out.jsonl       # also write every driver_state message as JSON Lines
 uv run python -m driver_monitor --video clip.mp4       # run on a recorded video instead of the camera
 uv run python -m driver_monitor --no-calibration       # skip calibration (less accurate)
-uv run python -m driver_monitor --config my.yaml       # override thresholds
+uv run python -m driver_monitor --config my.yaml       # use another settings file instead of config/driver_monitor.yaml
 uv run python -m driver_monitor --dump-config          # print all settings with their defaults
 uv run python -m driver_monitor --print-schema         # print the JSON Schema of driver_state
 ```
@@ -37,3 +51,7 @@ uv run pytest
 uv run ruff check .
 uv run mypy
 ```
+
+`tests/test_recordings.py` replays real webcam recordings from `recordings/` (git-ignored); cache a new
+one with `uv run python tools/cache_recording.py recordings/clip.mp4` (`--screen` for a screen capture of
+the preview window). See docs/IMPLEMENTATION.md section 12.

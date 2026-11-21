@@ -82,7 +82,15 @@ class OverlayRenderer:
         # Driver's right appears on the right of a mirrored preview.
         dx = np.sin(np.radians(g.yaw_deg)) * scale * (1 if self.mirror else -1)
         dy = -np.sin(np.radians(g.pitch_deg)) * scale
-        color = (90, 220, 90) if g.on_road else (40, 200, 255)
+        zone = g.zone.value
+        if zone == "ROAD":
+            color = (90, 220, 90)  # green
+        elif zone.endswith("MIRROR"):
+            color = (230, 180, 60)  # blue: a valid mirror check
+        elif zone == "DOWN":
+            color = (40, 40, 230)  # red: no reason to look down
+        else:
+            color = (40, 200, 255)  # orange
         cv2.arrowedLine(
             img,
             (int(nose[0]), int(nose[1])),
@@ -106,11 +114,13 @@ class OverlayRenderer:
         if s.calibration.status.value == "CALIBRATING":
             lines += [f"CALIBRATING {s.calibration.progress:.0%}", s.calibration.message or ""]
         lines += [
-            f"eyes {e.state.value} {f(e.openness, '.2f')} ({e.source.value}) {e.trend.value}",
+            f"eyes {e.state.value} {f(e.openness, '.2f')} ({e.source.value}) {e.trend.value}"
+            f"  vs normal {f(e.openness_ratio, '.2f')}",
             f"head yaw {f(hd.yaw_deg)} pitch {f(hd.pitch_deg)} roll {f(hd.roll_deg)}",
-            f"gaze {g.direction.value} {g.intensity.value} ({f(g.yaw_deg)}, {f(g.pitch_deg)}) on_road {g.on_road}",
+            f"gaze {g.direction.value} ({f(g.yaw_deg)}, {f(g.pitch_deg)}) zone {g.zone.value}",
             f"mouth {m.state.value} jaw {f(m.jaw_open, '.2f')} mar {f(m.mar, '.2f')}",
-            f"attention {a.state.value} off-road {a.eyes_off_road_s:.1f}s / 30s: {a.off_road_last_30s_s:.1f}s",
+            f"attention {a.state.value} off-road {a.eyes_off_road_s:.1f}s (down {a.glance_down_s:.1f}s)"
+            f" / 30s: {a.weighted_off_road_30s_s:.1f}s",
             f"drowsy {dr.level.value} {dr.score:.2f}  perclos {f(dr.indicators.perclos, '.2f')}",
             f"blinks/min {f(dr.indicators.blink_rate_per_min, '.0f')}  yawns {dr.indicators.yawns_5min}"
             f"  nods {dr.indicators.head_nods_5min}  microsleeps {dr.indicators.microsleeps_10min}",

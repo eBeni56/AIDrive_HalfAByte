@@ -5,6 +5,9 @@ blendshapes); eye-in-head pitch mostly from eyeLookUp/Down (vertical iris positi
 while the eyes are clearly open, because eyeLookDown also rises when the lids close or squint. With
 narrowed eyes the vertical eye angle uses the iris position alone.
 Both are relative to the neutral values recorded during calibration.
+
+The combined angles are also mapped to a ZONE (road, the three mirrors, left/right side, up, down) - the
+mirror positions come from the gaze_zones config (simulator screen layout by default).
 """
 
 from __future__ import annotations
@@ -14,9 +17,17 @@ from dataclasses import dataclass
 import numpy as np
 
 from driver_monitor.calibration.profile import DriverProfile
-from driver_monitor.common.enums import EyeSource, EyeState, GazeDirection, Horizontal, Intensity, Vertical
+from driver_monitor.common.enums import (
+    EyeSource,
+    EyeState,
+    GazeDirection,
+    GazeZone,
+    Horizontal,
+    Intensity,
+    Vertical,
+)
 from driver_monitor.common.filters import OneEuroFilter
-from driver_monitor.config import GazeConfig
+from driver_monitor.config import GazeConfig, GazeZonesConfig
 from driver_monitor.perception.features import FaceFeatures
 from driver_monitor.signals.eyes import EyesSignal
 from driver_monitor.signals.head import HeadSignal
@@ -36,11 +47,60 @@ class GazeSignal:
     eye_pitch: float | None = None
     on_road: bool | None = None
     direction_for_s: float = 0.0
+    zone: GazeZone = GazeZone.UNKNOWN
+    zone_for_s: float = 0.0
+
+
+class ZoneClassifier:
+    """Gaze angles -> GazeZone. Mirrors first (their boxes may overlap the road box), then the road box,
+    then DOWN (anything below the road box: no reason to look there), UP, LEFT_SIDE / RIGHT_SIDE.
+    A zone is kept while the gaze stays within `hysteresis_deg` of it (no flicker on the borders)."""
+
+    def __init__(self, gaze_cfg: GazeConfig, zones: GazeZonesConfig) -> None:
+        self.g, self.z = gaze_cfg, zones
+        self.zone = GazeZone.UNKNOWN
+
+    def reset(self) -> None:
+        self.zone = GazeZone.UNKNOWN
+
+    def classify(self, yaw: float, pitch: float, on_road: bool) -> GazeZone:
+        g, z, prev = self.g, self.z, self.zone
+        hy = z.hysteresis_deg
+        mirrors = (
+            (GazeZone.REAR_MIRROR, z.rear_mirror),
+            (GazeZone.LEFT_MIRROR, z.left_mirror),
+            (GazeZone.RIGHT_MIRROR, z.right_mirror),
+        )
+        zone: GazeZone | None = None
+        for name, box in mirrors:  # the current mirror first, with the hysteresis margin
+            if name is prev and box.contains(yaw, pitch, hy):
+                zone = name
+        if zone is None:
+            zone = next((name for name, box in mirrors if box.contains(yaw, pitch)), None)
+        if zone is None and on_road:
+            zone = GazeZone.ROAD
+        if zone is None:
+            down = g.on_road_pitch_down_deg - (hy if prev is GazeZone.DOWN else 0.0)
+            if pitch <= -down:
+                zone = GazeZone.DOWN
+            elif prev in (GazeZone.DOWN, GazeZone.UP, GazeZone.LEFT_SIDE, GazeZone.RIGHT_SIDE) and (
+                abs(yaw) <= g.on_road_yaw_deg and -g.on_road_pitch_down_deg <= pitch <= g.on_road_pitch_up_deg
+            ):
+                zone = prev  # inside the road box but not back on the road yet (road hysteresis)
+            elif pitch / g.on_road_pitch_up_deg >= abs(yaw) / g.on_road_yaw_deg:
+                zone = GazeZone.UP
+            else:
+                zone = GazeZone.LEFT_SIDE if yaw < 0 else GazeZone.RIGHT_SIDE
+        self.zone = zone
+        return zone
 
 
 class GazeEstimator:
-    def __init__(self, cfg: GazeConfig) -> None:
+    def __init__(self, cfg: GazeConfig, zones: GazeZonesConfig | None = None) -> None:
         self.cfg = cfg
+        self.zones = ZoneClassifier(cfg, zones or GazeZonesConfig())
+        self._zone_since: float | None = None
+        self._zone_prev = GazeZone.UNKNOWN
         self._f_yaw = OneEuroFilter(cfg.filter_min_cutoff, cfg.filter_beta)
         self._f_pitch = OneEuroFilter(cfg.filter_min_cutoff, cfg.filter_beta)
         self._last_eye: tuple[float, float, float] | None = None  # (t, yaw, pitch)
@@ -56,6 +116,15 @@ class GazeEstimator:
         self._last_eye = None
         self._h, self._v, self._on_road = Horizontal.CENTER, Vertical.CENTER, True
         self._direction, self._direction_since = GazeDirection.UNKNOWN, None
+        self.zones.reset()
+        self._zone_prev, self._zone_since = GazeZone.UNKNOWN, None
+
+    def _set_zone(self, zone: GazeZone, t: float) -> float:
+        if zone is not self._zone_prev or self._zone_since is None:
+            self._zone_prev, self._zone_since = zone, t
+        if zone is GazeZone.UNKNOWN:
+            self.zones.reset()
+        return t - self._zone_since
 
     # ------------------------------------------------------------------ eye-in-head angles
     def _eye_angles(
@@ -143,7 +212,10 @@ class GazeEstimator:
         if face is None or profile is None or not head.valid or head.yaw is None or head.pitch is None:
             self._f_yaw.reset()
             self._f_pitch.reset()
-            return GazeSignal(direction_for_s=self._set_direction(GazeDirection.UNKNOWN, t))
+            return GazeSignal(
+                direction_for_s=self._set_direction(GazeDirection.UNKNOWN, t),
+                zone_for_s=self._set_zone(GazeZone.UNKNOWN, t),
+            )
 
         eye_yaw: float | None = None
         eye_pitch: float | None = None
@@ -160,6 +232,7 @@ class GazeEstimator:
                     head_yaw=head.yaw,
                     head_pitch=head.pitch,
                     direction_for_s=self._set_direction(GazeDirection.UNKNOWN, t),
+                    zone_for_s=self._set_zone(GazeZone.UNKNOWN, t),
                 )
         # else: eyes unreliable (head turned far) -> head-only gaze
 
@@ -167,6 +240,7 @@ class GazeEstimator:
         pitch = head.pitch + (eye_pitch or 0.0)
         self._h, self._v = self._horizontal(yaw), self._vertical(pitch)
         self._on_road = self._road(yaw, pitch)
+        zone = self.zones.classify(yaw, pitch, self._on_road)
         direction = GazeDirection.combine(self._h, self._v)
         return GazeSignal(
             direction=direction,
@@ -181,4 +255,6 @@ class GazeEstimator:
             eye_pitch=eye_pitch,
             on_road=self._on_road,
             direction_for_s=self._set_direction(direction, t),
+            zone=zone,
+            zone_for_s=self._set_zone(zone, t),
         )

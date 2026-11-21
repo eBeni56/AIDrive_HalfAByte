@@ -9,6 +9,10 @@ cached .npz files are missing. Expectations were checked frame by frame against 
   r5  mostly straight ahead, one quick glance down at 30 s (no drowsiness)
   r7  eyes closed three times for 2-6 s
   r8  straight ahead, eyes closed once (~2 s), then attentive again
+  r9  looks right, far left, up; eyes closed ~2 s at 40 s
+  r10 looks down at 23 s (~3 s), then several eye closures and a yawn
+  r12 eyes clearly narrower than normal from ~49 s (open, ~80 % of normal) for ~20 s, then closures
+      (r11 is a byte-identical copy of r12)
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from __future__ import annotations
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -28,6 +33,9 @@ sys.path.insert(0, str(ROOT / "tools"))
 from cache_recording import replay_features  # noqa: E402
 
 REC = ROOT / "recordings"
+FIRST: dict[
+    int, dict[str, tuple[float, dict[str, Any]]]
+] = {}  # recording -> type -> (t, details) of 1st start
 
 
 def _run(n: int) -> tuple[Counter[str], DrowsinessLevel]:
@@ -38,6 +46,7 @@ def _run(n: int) -> tuple[Counter[str], DrowsinessLevel]:
     mon = DriverMonitor(AppConfig(), base_dir=ROOT, calibrate=True)
     mon.start_calibration(feats[0].t)
     started: Counter[str] = Counter()
+    first = FIRST.setdefault(n, {})
     peak = DrowsinessLevel.ALERT
     for f in feats:
         s = mon.process_features(f, f.t).state
@@ -46,6 +55,7 @@ def _run(n: int) -> tuple[Counter[str], DrowsinessLevel]:
                 d.status is DetectionStatus.ENDED and d.type.value == "HEAD_NOD"
             ):
                 started[d.type.value] += 1
+                first.setdefault(d.type.value, (f.t, dict(d.details)))
         if s.drowsiness.level.number > peak.number:
             peak = s.drowsiness.level
     return started, peak
@@ -76,7 +86,7 @@ def test_r3_yawns_closures_phone() -> None:
 def test_looking_around_is_not_drowsiness(n: int) -> None:
     got, peak = _run(n)
     assert peak is DrowsinessLevel.ALERT, (got, peak)
-    assert not any(got[k] for k in (*FALSE_ALARMS, "MICROSLEEP", "EYES_CLOSED", "YAWN")), got
+    assert not any(got[k] for k in (*FALSE_ALARMS, "MICROSLEEP", "EYES_CLOSED", "YAWN", "EYES_NARROWED")), got
 
 
 def test_r7_every_long_closure_is_a_microsleep() -> None:
@@ -91,4 +101,28 @@ def test_r8_single_closure_is_alarmed_but_not_high_drowsiness() -> None:
     got, peak = _run(8)
     assert got["MICROSLEEP"] == 1
     assert peak.number <= DrowsinessLevel.SLIGHTLY_DROWSY.number, peak
+    assert not any(got[k] for k in FALSE_ALARMS), got
+    assert not got["EYES_NARROWED"], got
+
+
+def test_r9_looking_around_without_false_alarms() -> None:
+    got, _ = _run(9)
+    assert got["MICROSLEEP"] == 1
+    assert not any(got[k] for k in (*FALSE_ALARMS, "DISTRACTED", "EYES_NARROWED")), got
+
+
+def test_r10_looking_down_is_flagged_fast() -> None:
+    got, _ = _run(10)
+    t, details = FIRST[10]["DISTRACTED"]
+    assert details["reason"] == "LOOKING_DOWN" and details["zone"] == "DOWN"
+    assert 23.0 <= t <= 24.0, t  # ~1.2 s after the look down began (was ~2 s)
+    assert got["MICROSLEEP"] >= 3 and got["YAWN"] >= 1
+    assert not any(got[k] for k in FALSE_ALARMS), got
+
+
+def test_r12_narrowed_eyes_are_a_tiredness_sign() -> None:
+    got, _ = _run(12)
+    t, details = FIRST[12]["EYES_NARROWED"]
+    assert 50.0 <= t <= 60.0 and details["normal_learned"], (t, details)
+    assert got["MICROSLEEP"] >= 1
     assert not any(got[k] for k in FALSE_ALARMS), got

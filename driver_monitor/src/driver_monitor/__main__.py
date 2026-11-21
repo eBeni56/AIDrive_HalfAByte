@@ -10,7 +10,14 @@ import sys
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="driver_monitor", description="Webcam driver monitoring (MediaPipe).")
-    p.add_argument("--config", help="YAML file overriding the defaults (see --dump-config)")
+    p.add_argument(
+        "--config",
+        help="YAML file overriding the defaults (default: config/driver_monitor.yaml if it exists; see --dump-config)",
+    )
+    p.add_argument(
+        "--ws", dest="ws_url", help="WebSocket address to stream the JSON to (overrides the config)"
+    )
+    p.add_argument("--no-ws", action="store_true", help="do not stream the JSON to the WebSocket")
     p.add_argument(
         "--camera", type=int, help="camera index (default 1 = external USB camera, falls back to 0)"
     )
@@ -41,9 +48,15 @@ def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
-    from driver_monitor.config import dump_config, load_config
+    from driver_monitor.config import DEFAULT_CONFIG_FILE, dump_config, load_config
 
-    cfg = load_config(args.config)
+    config_path = args.config or (DEFAULT_CONFIG_FILE if DEFAULT_CONFIG_FILE.exists() else None)
+    cfg = load_config(config_path)
+    if args.ws_url:
+        cfg.websocket.url = args.ws_url
+        cfg.websocket.enabled = True
+    if args.no_ws:
+        cfg.websocket.enabled = False
     if args.camera is not None:
         cfg.camera.index = args.camera
         cfg.camera.fallback_indices = []  # an explicit choice must not silently open another camera

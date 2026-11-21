@@ -18,21 +18,24 @@ EXPECTED: dict[str, list[set[str]]] = {
     # one microsleep is alarmed instantly; the drowsiness LEVEL only follows as the evidence accumulates
     "microsleep": [{"MICROSLEEP", "EYES_CLOSED"}, {"MICROSLEEP"}, {"MICROSLEEP"}],
     "eyes_almost_closed": [{"EYES_ALMOST_CLOSED"}],
-    "tired_eyes": [{"TIRED_EYES", "DROWSY"}],
+    "tired_eyes": [{"TIRED_EYES", "EYES_NARROWED", "DROWSY"}],
     "yawn": [{"YAWN"}, {"YAWN"}],
     "talking": [set()],
     "head_nod": [{"HEAD_NOD", "EYES_CLOSED"}],
     # heavy but open eyes while the head sinks are not a fall yet (could be a look at the phone)
-    "head_falling": [{"EYES_ALMOST_CLOSED"}, {"HEAD_FALLING", "MICROSLEEP"}],
+    # the head sinks with half-open eyes looking down for > 1.2 s: also off the road (DISTRACTED)
+    "head_falling": [{"EYES_ALMOST_CLOSED"}, {"HEAD_FALLING", "MICROSLEEP", "DISTRACTED"}],
     "head_sideways": [{"HEAD_FALLING", "MICROSLEEP", "DROWSY"}],
+    "eyes_narrowed": [{"EYES_NARROWED", "DROWSY"}],
     "mirror_left": [set()],
+    "look_side": [set()],
     "shoulder_right": [set()],
     "rear_mirror": [set()],
     "look_down": [{"DISTRACTED"}, {"DISTRACTED"}, {"DISTRACTED"}],
     "cumulative": [{"DISTRACTED"}],
     "face_lost_left": [{"FACE_NOT_VISIBLE"}],
     "face_lost_drop": [{"FACE_NOT_VISIBLE", "DROWSY"}],
-    "severe": [{"DROWSY", "TIRED_EYES", "EYES_ALMOST_CLOSED"}],
+    "severe": [{"DROWSY", "TIRED_EYES", "EYES_ALMOST_CLOSED", "EYES_NARROWED"}],
     "recovering": [{"DROWSY"}, {"DROWSY"}, set()],
     "long_blinks_trend": [{"DROWSY"}, {"DROWSY"}, {"DROWSY"}],
 }
@@ -49,8 +52,13 @@ def test_scenario(sc: object) -> None:
 def test_specific_values() -> None:
     by_name = {s.name: s for s in SCENARIOS}
     look = run(by_name["look_down"])
-    assert look[0][1].eyes.lid_lowered_by_gaze is True
-    assert look[1][1].detections[0].severity.value == "DANGER"
+    assert look[0][1].eyes.lid_lowered_by_gaze is True and look[0][1].gaze.zone.value == "DOWN"
+    assert look[0][1].detections[0].severity.value == "WARNING"  # 1.4 s down
+    assert look[1][1].detections[0].severity.value == "DANGER"  # 2.8 s down
+    assert look[0][1].detections[0].details["reason"] == "LOOKING_DOWN"
+    narrowed = run(by_name["eyes_narrowed"])[0][1]
+    assert narrowed.eyes.normal_learned and narrowed.drowsiness.level.value == "SLIGHTLY_DROWSY"
+    assert narrowed.eyes.openness_ratio is not None and narrowed.eyes.openness_ratio < 0.85
     lost = run(by_name["face_lost_left"])[0][1]
     assert lost.detections[0].details["likely_cause"] == "TURNED_AWAY_LEFT"
     drop = run(by_name["face_lost_drop"])[0][1]
@@ -58,12 +66,9 @@ def test_specific_values() -> None:
         "HEAD_DROPPED"
     )
     mirror = run(by_name["mirror_left"])[0][1]
-    assert (
-        mirror.gaze.direction.value == "LEFT"
-        and mirror.gaze.yaw_deg is not None
-        and mirror.gaze.yaw_deg < -25
-    )
-    assert mirror.eyes.source.value == "RIGHT_ONLY"  # turned left -> the right eye faces the camera
+    assert mirror.gaze.zone.value == "LEFT_MIRROR" and mirror.attention.state.value == "CHECKING_MIRROR"
+    assert run(by_name["rear_mirror"])[0][1].gaze.zone.value == "REAR_MIRROR"
+    assert run(by_name["look_side"])[0][1].gaze.zone.value == "LEFT_SIDE"
     # acute: two microsleeps stack to DROWSY, then the level recovers while the history keeps the events
     recovering = run(by_name["recovering"])
     assert [s.drowsiness.level.value for _, s in recovering] == ["DROWSY", "SLIGHTLY_DROWSY", "ALERT"]

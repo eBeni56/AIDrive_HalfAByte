@@ -1,7 +1,8 @@
 """TIRED_EYES: a slow, heavy-eyed pattern over the last minute (no single dramatic event needed).
 
 Reasons (any of):
-  HEAVY_EYELIDS          mean openness of the open eyes < heavy_eyelids_below (e.g. 0.75 of normal)
+  HEAVY_EYELIDS          mean openness of the open eyes < heavy_eyelids_below (0.8) of the driver's
+                         learned normal opening (state/eye_baseline.py)
   SLOW_BLINKS            mean blink duration > slow_blink_ms (with >= min_blinks_for_duration blinks)
   FREQUENT_LONG_BLINKS   >= long_blinks closures of 0.5-1.0 s in the window
 Severity INFO with one reason, WARNING with two or more. Ends after end_after_s without any reason.
@@ -30,7 +31,8 @@ class TiredEyesDetector:
         out: list[str] = []
         if s.warming_up:
             return out
-        if s.mean_openness is not None and s.mean_openness < c.heavy_eyelids_below:
+        rel = s.mean_openness_ratio if s.mean_openness_ratio is not None else s.mean_openness
+        if rel is not None and rel < c.heavy_eyelids_below:
             out.append("HEAVY_EYELIDS")
         if (
             s.mean_blink_duration_ms is not None
@@ -48,6 +50,7 @@ class TiredEyesDetector:
             "window_s": self.cfg.window_s,
             "reasons": reasons,
             "mean_openness_60s": r(stats.mean_openness),
+            "mean_openness_ratio_60s": r(stats.mean_openness_ratio),
             "mean_blink_duration_ms": r(stats.mean_blink_duration_ms, 0),
             "long_blinks_60s": stats.long_blinks,
             "perclos": r(stats.perclos, 3),

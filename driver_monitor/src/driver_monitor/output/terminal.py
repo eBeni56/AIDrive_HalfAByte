@@ -49,6 +49,11 @@ def describe(d: DetectionOut) -> str:
             )
         case DetectionType.EYES_ALMOST_CLOSED:
             return f"openness {x.get('openness')} for {d.duration_s:.1f}s"
+        case DetectionType.EYES_NARROWED:
+            return (
+                f"eyes at {x.get('openness_ratio')} of this driver's normal opening for {d.duration_s:.1f}s "
+                f"(min {x.get('min_ratio')})"
+            )
         case DetectionType.TIRED_EYES:
             return (
                 f"{', '.join(x.get('reasons') or []) or 'fading'} (mean openness {x.get('mean_openness_60s')}, "
@@ -68,10 +73,16 @@ def describe(d: DetectionOut) -> str:
         case DetectionType.DISTRACTED:
             if x.get("reason") == "CUMULATIVE":
                 return (
-                    f"{x.get('off_road_last_30s_s')}s off-road in the last 30s (looking {x.get('direction')})"
+                    f"{x.get('weighted_off_road_30s_s')}s weighted off-road in the last 30s "
+                    f"(last zone {x.get('zone')})"
+                )
+            if x.get("reason") == "LOOKING_DOWN":
+                return (
+                    f"looking DOWN for {x.get('glance_down_s')}s "
+                    f"(gaze {x.get('gaze_yaw_deg')}°, {x.get('gaze_pitch_deg')}°)"
                 )
             return (
-                f"looking {x.get('direction')} for {x.get('longest_glance_s')}s "
+                f"looking {x.get('zone')} for {x.get('longest_glance_s')}s "
                 f"(gaze {x.get('gaze_yaw_deg')}°, {x.get('gaze_pitch_deg')}°)"
             )
         case DetectionType.FACE_NOT_VISIBLE:
@@ -173,8 +184,8 @@ class TerminalReporter:
         if g.yaw_deg is not None:
             strength = "" if g.intensity.value == "NONE" else f" {g.intensity.value.lower()}"
             gaze += f"{strength} ({_f(g.yaw_deg)}°,{_f(g.pitch_deg)}°)"
-        if g.on_road is False:
-            gaze += f" {a.eyes_off_road_s:.1f}s"
+        if g.zone.value not in ("ROAD", "UNKNOWN"):
+            gaze += f" {g.zone.value} {a.eyes_off_road_s:.1f}s"
         active = " ".join(f"{d.type.value}" for d in s.active_detections())
         parts = [
             f"[{s.t:8.1f}s] {(sev.value if sev is not Severity.NONE else 'OK'):8s}",
