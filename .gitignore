@@ -222,5 +222,16 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Local logs and databases
+pickup_detection/drive_logs.db
+*.log
+
+# Models folder
+models/
+
 # Claude Code local settings
 .claude/
+
+# Speech recognition test transcripts
+speech-recognition/test_with_keyterms.txt
+speech-recognition/transcript.txt
