@@ -47,9 +47,8 @@ class EpisodeTracker:
         self._counter += 1
         return f"{self.dtype.value.lower()}-{self._counter}"
 
-    def start(self, now: float, started_t: float, severity: Severity, details: dict[str, Any]) -> Detection:
-        if self.active is not None:
-            self.end(now)
+    def start(self, now: float, started_t: float, severity: Severity, details: dict[str, Any]) -> None:
+        assert self.active is None, "end the active episode first"
         self.active = Detection(
             self._new_id(),
             self.dtype,
@@ -60,30 +59,22 @@ class EpisodeTracker:
             now - started_t,
             dict(details),
         )
-        return self.active
 
-    def update(
-        self,
-        now: float,
-        details: dict[str, Any] | None = None,
-        severity: Severity | None = None,
-        allow_lower: bool = False,
-    ) -> None:
+    def update(self, now: float, details: dict[str, Any] | None = None, severity: Severity | None = None) -> None:
+        """Keep the active episode going; its severity can only rise."""
         a = self.active
         if a is None:
             return
         a.duration_s = now - a.started_t
         if details:
             a.details.update(details)
-        if severity is not None and (allow_lower or severity.rank > a.severity.rank):
+        if severity is not None and severity.rank > a.severity.rank:
             a.severity = severity
 
-    def end(
-        self, now: float, ended_t: float | None = None, details: dict[str, Any] | None = None
-    ) -> Detection | None:
+    def end(self, now: float, ended_t: float | None = None, details: dict[str, Any] | None = None) -> None:
         a = self.active
         if a is None:
-            return None
+            return
         a.ended_t = ended_t if ended_t is not None else now
         a.duration_s = a.ended_t - a.started_t
         if details:
@@ -91,7 +82,6 @@ class EpisodeTracker:
         a.status = DetectionStatus.ENDED
         self._finished.append(a)
         self.active = None
-        return a
 
     def emit(self) -> list[Detection]:
         out = [copy.deepcopy(d) for d in self._finished]

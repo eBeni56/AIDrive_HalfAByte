@@ -11,7 +11,7 @@ import shutil
 import sys
 from typing import TextIO
 
-from driver_monitor.common.enums import DetectionStatus, DetectionType, Severity
+from driver_monitor.common.enums import CalibrationStatus, DetectionStatus, DetectionType, Severity
 from driver_monitor.config import OutputConfig
 from driver_monitor.output.schema import DetectionOut, DriverState
 
@@ -78,7 +78,7 @@ class TerminalReporter:
             self._status(s)
 
     def _calibration(self, s: DriverState) -> None:
-        msg = s.calibration.message if s.calibration.status.value == "CALIBRATING" else None
+        msg = s.calibration.message if s.calibration.status is CalibrationStatus.CALIBRATING else None
         if msg and msg != self._last_cal_msg:
             self.line(self._c(f"[{s.t:8.1f}s] CALIBRATION  {msg}", Severity.WARNING))
         if self._last_cal_msg and not msg:
@@ -122,7 +122,7 @@ class TerminalReporter:
         active = " ".join(d.type.value for d in s.active_detections())
         fps = f"{q.fps:.0f}fps" + (f" (cam {q.camera_fps:.0f})" if q.camera_fps is not None else "")
         parts = [f"[{s.t:8.1f}s] {(sev.value if sev is not Severity.NONE else 'OK'):8s}"]
-        if s.calibration.status.value == "CALIBRATING":
+        if s.calibration.status is CalibrationStatus.CALIBRATING:
             parts.append(f"CALIBRATING {s.calibration.progress:.0%}")
         else:
             parts += [f"eyes {e.state.value}{openness}", f"gaze {gaze}"]

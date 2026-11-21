@@ -27,10 +27,6 @@ class DistractionDetector:
         self.tracker.reset()
         self._away_since = self._back_since = None
 
-    @property
-    def active(self) -> bool:
-        return self.tracker.is_active
-
     def update(self, zone: GazeZone, t: float) -> None:
         c = self.cfg
         if zone.is_away:

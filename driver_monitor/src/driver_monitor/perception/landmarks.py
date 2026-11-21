@@ -10,9 +10,13 @@ from __future__ import annotations
 RIGHT_EYE_EAR: tuple[int, ...] = (33, 160, 158, 133, 153, 144)
 LEFT_EYE_EAR: tuple[int, ...] = (362, 385, 387, 263, 373, 380)
 
+# Outer eye corners: their distance is the face size (interocular distance)
+RIGHT_EYE_OUTER = 33
+LEFT_EYE_OUTER = 263
+
 # Corners in image-left -> image-right order (used for the iris position along the eye axis)
-RIGHT_EYE_CORNERS: tuple[int, int] = (33, 133)  # outer, inner
-LEFT_EYE_CORNERS: tuple[int, int] = (362, 263)  # inner, outer
+RIGHT_EYE_CORNERS: tuple[int, int] = (RIGHT_EYE_OUTER, 133)  # outer, inner
+LEFT_EYE_CORNERS: tuple[int, int] = (362, LEFT_EYE_OUTER)  # inner, outer
 
 RIGHT_IRIS_CENTER = 468
 LEFT_IRIS_CENTER = 473

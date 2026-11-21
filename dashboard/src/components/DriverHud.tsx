@@ -1,6 +1,7 @@
 // The driver display: one big icon and one short instruction - the most important current problem.
 import type { ReactNode } from "react";
-import { useHud, type Arrow, type IconName } from "../hud";
+import { useHud, type IconName } from "../hud";
+import type { Arrow } from "../regions";
 
 const ICONS: Record<IconName, ReactNode> = {
   alarm: (

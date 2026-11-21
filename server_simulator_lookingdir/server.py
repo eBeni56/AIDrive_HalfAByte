@@ -88,10 +88,10 @@ def current_region():
     return region if status == "ok" else None
 
 
-def simulator_event(event, raw, now=None):
+def simulator_event(event, raw):
     """Feed a (valid) simulator message to the attention check. Returns the texts for the dashboard:
     simulation_started / _ended as received, plus the attention messages (ticks themselves are not sent)."""
-    now = time.monotonic() if now is None else now
+    now = time.monotonic()
     if event == "simulation_started":
         return [raw] + [json.dumps(m) for m in watch.start(now)]
     if event == "simulation_tick":
@@ -138,17 +138,22 @@ def decide_gaze(now=None):
     return "ok", camera.region(d.zone, d.yaw_deg, FRONT_SPLIT_DEG)
 
 
-async def send_to_dashboards(text):
-    """Send one text to every dashboard. Returns how many got it."""
+async def broadcast(text, wants):
+    """Send one text to every client whose role passes `wants(role)`. Returns how many got it."""
     sent = 0
     for ws, role in list(clients.items()):
-        if role == "dashboard":
+        if wants(role):
             try:
                 await ws.send(text)
                 sent += 1
             except Exception:   # a failed send must never break the server
                 pass
     return sent
+
+
+async def send_to_dashboards(text):
+    """Send one text to every dashboard. Returns how many got it."""
+    return await broadcast(text, lambda role: role == "dashboard")
 
 
 async def send_dashboard_loop():
@@ -181,14 +186,7 @@ async def send_gaze_loop():
         status, region = decide_gaze()
         text = json.dumps({"event": "gaze_update", "timestamp": time.time(),
                            "status": status, "region": region})
-        sent = 0
-        for ws, role in list(clients.items()):
-            if role not in NO_GAZE_UPDATE:
-                try:
-                    await ws.send(text)
-                    sent += 1
-                except Exception:   # a failed send must never break the server
-                    pass
+        sent = await broadcast(text, lambda role: role not in NO_GAZE_UPDATE)
         if sent:                    # nothing is logged while no simulator is connected
             if (status, region) != last:
                 log.info("SENT %s", text)
@@ -214,6 +212,6 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-    except OSError as e:  # most often: port already used, e.g. simulator/test_server.py is running
+    except OSError as e:  # most often: the port is already used (another server is running)
         log.error("could not start on port %d: %s", PORT, e)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

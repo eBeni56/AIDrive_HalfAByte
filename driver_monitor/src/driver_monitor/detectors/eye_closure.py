@@ -30,10 +30,6 @@ class EyeClosureDetector:
         self.tracker.reset()
         self._closed_since = self._open_since = self._unknown_since = None
 
-    @property
-    def active(self) -> bool:
-        return self.tracker.is_active
-
     def update(self, eyes: EyesSignal, t: float) -> None:
         c = self.cfg
         start = self._closed_since

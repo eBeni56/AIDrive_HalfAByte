@@ -8,7 +8,7 @@ let messages: ChatMessage[] = [];
 const listeners = new Set<() => void>();
 
 export function addChatMessage(role: ChatMessage["role"], text: string): void {
-  messages = [...messages, { role, text, at: Date.now() }];
+  messages = [...messages, { role, text }];
   listeners.forEach((l) => l());
 }
 

@@ -1,5 +1,5 @@
-/* Layout: a side column (camera + small chat) and two large terminals.
-   Mid-grey workspace, dark terminals, muted editor-like colours. */
+/* Layout: a side column (camera + small chat), the Simulation terminal and the driver display.
+   Mid-grey workspace, dark panels, muted editor-like colours. */
 :root {
   --bg: #2b2f35;
   --panel: #353a41;
@@ -83,9 +83,6 @@ body {
 }
 .tone-ok {
   --tone: var(--ok);
-}
-.tone-info {
-  --tone: var(--info);
 }
 .tone-warn {
   --tone: var(--warn);
@@ -213,7 +210,6 @@ body {
   overflow-wrap: anywhere;
 }
 
-.line.tone-info .text,
 .line.tone-muted .text {
   color: var(--info);
 }

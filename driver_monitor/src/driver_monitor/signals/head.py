@@ -12,7 +12,8 @@ from driver_monitor.perception.features import FaceFeatures
 
 @dataclass(slots=True)
 class HeadSignal:
-    valid: bool
+    """All three angles are None when there is no face (or no pose) in the frame."""
+
     yaw: float | None = None  # deg, relative to neutral: - left / + right
     pitch: float | None = None  # - down / + up
     roll: float | None = None  # - left shoulder / + right shoulder
@@ -33,7 +34,7 @@ class HeadPoseProcessor:
 
     def update(self, face: FaceFeatures | None, profile: DriverProfile | None, t: float) -> HeadSignal:
         if face is None or face.yaw is None or face.pitch is None or face.roll is None or profile is None:
-            return HeadSignal(valid=False)
+            return HeadSignal()
         if self._last_t is not None and t - self._last_t > self._RESET_GAP_S:
             for f in self._filters:
                 f.reset()
@@ -44,4 +45,4 @@ class HeadPoseProcessor:
             face.roll - profile.neutral_roll,
         )
         yaw, pitch, roll = (f.update(v, t) for f, v in zip(self._filters, rel, strict=True))
-        return HeadSignal(True, yaw, pitch, roll)
+        return HeadSignal(yaw, pitch, roll)

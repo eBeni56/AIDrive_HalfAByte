@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from driver_monitor.calibration.profile import DriverProfile, EyeBaseline
-from driver_monitor.common.enums import EyeSource, EyeState
+from driver_monitor.common.enums import EyeSource, EyeState, QualityIssue
 from driver_monitor.common.filters import Ema
 from driver_monitor.config import EyesConfig
 from driver_monitor.perception.features import EyeFeatures, FaceFeatures
@@ -24,12 +24,16 @@ from driver_monitor.signals.head import HeadSignal
 
 @dataclass(slots=True)
 class EyesSignal:
-    reliable: bool
     state: EyeState
     state_for_s: float
     openness: float | None = None  # smoothed, combined over the used eye(s)
     source: EyeSource = EyeSource.BOTH
-    unreliable_reason: str | None = None  # "HEAD_TURNED_TOO_FAR" | "FACE_TOO_SMALL" | "NO_FACE" | ...
+    issue: QualityIssue | None = None  # why the eyes are UNKNOWN although there is a face
+
+    @property
+    def reliable(self) -> bool:
+        """The eyes were measured (OPEN or CLOSED)."""
+        return self.state is not EyeState.UNKNOWN
 
 
 def _openness(eye: EyeFeatures, base: EyeBaseline, cfg: EyesConfig, looking_down: bool) -> float:
@@ -63,19 +67,19 @@ class EyeSignalProcessor:
             self._state, self._state_since = state, t
         return t - self._state_since
 
-    def _unknown(self, reason: str, t: float, source: EyeSource = EyeSource.BOTH) -> EyesSignal:
+    def _unknown(self, t: float, issue: QualityIssue | None = None, source: EyeSource = EyeSource.BOTH) -> EyesSignal:
         self._ema.reset()
-        return EyesSignal(False, EyeState.UNKNOWN, self._set_state(EyeState.UNKNOWN, t), None, source, reason)
+        return EyesSignal(EyeState.UNKNOWN, self._set_state(EyeState.UNKNOWN, t), None, source, issue)
 
     def update(
         self, face: FaceFeatures | None, head: HeadSignal, profile: DriverProfile | None, t: float
     ) -> EyesSignal:
         c = self.cfg
         if face is None or profile is None:
-            return self._unknown("NO_FACE", t)
+            return self._unknown(t)
 
-        yaw = head.yaw if head.valid and head.yaw is not None else 0.0
-        pitch = head.pitch if head.valid and head.pitch is not None else 0.0
+        yaw = head.yaw if head.yaw is not None else 0.0
+        pitch = head.pitch if head.pitch is not None else 0.0
         looking_down = pitch <= c.look_down_head_pitch_deg
         left = _openness(face.left, profile.left, c, looking_down)
         right = _openness(face.right, profile.right, c, looking_down)
@@ -89,11 +93,11 @@ class EyeSignalProcessor:
             source, raw = EyeSource.BOTH, 0.5 * (left + right)
 
         if abs(yaw) > c.unreliable_yaw_deg or -pitch > c.unreliable_pitch_down_deg or pitch > c.unreliable_pitch_up_deg:
-            return self._unknown("HEAD_TURNED_TOO_FAR", t, source)
+            return self._unknown(t, QualityIssue.HEAD_TURNED_TOO_FAR, source)
         if face.interocular_px < c.min_interocular_px:
-            return self._unknown("FACE_TOO_SMALL", t, source)
+            return self._unknown(t, QualityIssue.FACE_TOO_SMALL, source)
         if face.partially_out:
-            return self._unknown("FACE_PARTIALLY_OUT_OF_FRAME", t, source)
+            return self._unknown(t, QualityIssue.FACE_PARTIALLY_OUT_OF_FRAME, source)
 
         openness = self._ema.update(raw, t)
         enter, exit_ = (
@@ -103,4 +107,4 @@ class EyeSignalProcessor:
         )
         closed = openness < (exit_ if self._state is EyeState.CLOSED else enter)
         state = EyeState.CLOSED if closed else EyeState.OPEN
-        return EyesSignal(True, state, self._set_state(state, t), openness, source, None)
+        return EyesSignal(state, self._set_state(state, t), openness, source)

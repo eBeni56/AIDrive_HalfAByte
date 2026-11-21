@@ -1,54 +1,17 @@
-// Turns the server's messages into human sentences for the two terminals.
+// Turns the server's messages into human sentences for the Simulation terminal.
 //
-//   simulation terminal  simulation_started / _ended, attention_event (appeared, zone_change, noticed,
-//                        missed), attention_summary   -> SIM / OK / MISSED lines
-//                        gaze_update                  -> CAM lines: where the driver looks (when it changes)
-//   (driver_state only counts detections for the end-of-run statistics; the driver's current problem is
-//   shown by the driver display, hud.ts)
+//   simulation_started / _ended, attention_event (appeared, zone_change, noticed, missed), attention_summary
+//                                 -> SIM / OK / MISSED / STATS lines
+//   gaze_update                   -> CAM lines: where the driver looks (when it changes)
+//   driver_state                  -> only counted for the end-of-run statistics (the driver's current
+//                                    problem is shown by the driver display, hud.ts)
+import { seconds } from "./format";
 import { simLog, type StatRow } from "./log";
+import { REGIONS } from "./regions";
 import type { AttentionEvent, AttentionSummary, DriverState, GazeUpdate } from "./types";
-
-// ------------------------------------------------------------------ words
-const ZONE: Record<string, string> = {
-  front_left: "front-left zone",
-  front_center: "zone straight ahead",
-  front_right: "front-right zone",
-  side_left: "left blind spot",
-  side_right: "right blind spot",
-  mirror_left: "left mirror zone",
-  mirror_center: "rear-view mirror zone",
-  mirror_right: "right mirror zone",
-};
-
-const ZONE_SHORT: Record<string, string> = {
-  front_left: "front-left",
-  front_center: "ahead",
-  front_right: "front-right",
-  side_left: "left blind spot",
-  side_right: "right blind spot",
-  mirror_left: "left mirror",
-  mirror_center: "rear mirror",
-  mirror_right: "right mirror",
-};
-
-const LOOK: Record<string, string> = {
-  front_left: "the road, front left",
-  front_center: "the road straight ahead",
-  front_right: "the road, front right",
-  side_left: "out of the left side window",
-  side_right: "out of the right side window",
-  mirror_left: "the left mirror",
-  mirror_center: "the rear-view mirror",
-  mirror_right: "the right mirror",
-  away: "away from the road and the mirrors",
-};
 
 function thing(e: { type: string; object_id: string }): string {
   return `${e.type} (${e.object_id})`;
-}
-
-function seconds(s: number | null | undefined): string {
-  return s == null ? "?" : `${Number(s.toFixed(2))} s`;
 }
 
 // ------------------------------------------------------------------ statistics of one run
@@ -97,7 +60,7 @@ function statsTable(s: AttentionSummary): StatRow[] {
     { label: "Missed", value: String(s.missed_count), tone: s.missed_count ? "danger" : "ok" },
     ...s.missed.map((m) => ({
       label: `  ${m.type} (${m.object_id})`,
-      value: `${ZONE_SHORT[m.zone] ?? m.zone} at ${seconds(m.t_s)}`,
+      value: `${REGIONS[m.zone]?.short ?? m.zone} at ${seconds(m.t_s)}`,
       tone: "danger" as const,
     })),
     { label: "Average reaction", value: s.avg_reaction_s == null ? "–" : seconds(s.avg_reaction_s) },
@@ -118,7 +81,7 @@ export function onSimulation(msg: { event?: string }): void {
     simLog.add("SIM", "sim", "──── Simulation started ────");
   } else if (msg.event === "attention_event") {
     const e = msg as AttentionEvent;
-    const zone = e.zone ? ZONE[e.zone] ?? e.zone : null;
+    const zone = e.zone ? REGIONS[e.zone]?.zone ?? e.zone : null;
     if (e.kind === "appeared") {
       simLog.add(
         "SIM",
@@ -163,7 +126,7 @@ function gazeSentence(g: GazeUpdate): [string, "cam" | "warn" | "danger" | "mute
   switch (g.status) {
     case "ok":
       if (g.region === "away") return ["The driver looks away from the road and the mirrors", "warn"];
-      return [`The driver looks at ${LOOK[g.region ?? ""] ?? g.region}`, "cam"];
+      return [`The driver looks at ${REGIONS[g.region ?? ""]?.look ?? g.region}`, "cam"];
     case "eyes_closed":
       return ["The driver's eyes are closed", "danger"];
     case "no_face":

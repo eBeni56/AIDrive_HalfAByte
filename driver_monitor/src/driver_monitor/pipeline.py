@@ -31,11 +31,11 @@ from driver_monitor.detectors.phone import PhoneDetector
 from driver_monitor.output import builder
 from driver_monitor.output.schema import Calibration, DriverState, Quality
 from driver_monitor.perception.face_tracker import FaceTracker
-from driver_monitor.perception.features import FeatureExtractor, FrameFeatures
+from driver_monitor.perception.features import FrameFeatures, extract_features
 from driver_monitor.perception.phone_finder import PhoneFinder, PhoneSighting
-from driver_monitor.signals.eyes import EyeSignalProcessor, EyesSignal
-from driver_monitor.signals.gaze import GazeEstimator, GazeSignal
-from driver_monitor.signals.head import HeadPoseProcessor, HeadSignal
+from driver_monitor.signals.eyes import EyeSignalProcessor
+from driver_monitor.signals.gaze import GazeEstimator
+from driver_monitor.signals.head import HeadPoseProcessor
 
 
 @dataclass(slots=True)
@@ -44,29 +44,18 @@ class FrameResult:
 
     state: DriverState
     features: FrameFeatures
-    head: HeadSignal
-    eyes: EyesSignal
-    gaze: GazeSignal
     phone: PhoneSighting | None = None  # the phone seen in the newest analysed frame (for the overlay)
 
 
 class DriverMonitor:
-    def __init__(
-        self,
-        cfg: AppConfig,
-        base_dir: Path | None = None,
-        tracker: FaceTracker | None = None,
-        calibrate: bool = True,
-    ) -> None:
+    def __init__(self, cfg: AppConfig, base_dir: Path | None = None, calibrate: bool = True) -> None:
+        """calibrate=False: population defaults instead of calibrating (--no-calibration)."""
         self.cfg = cfg
         self._base_dir = base_dir
-        self.tracker = tracker  # created lazily on the first camera frame (process_features needs none)
-        self.features = FeatureExtractor(cfg.pose)
+        self.tracker: FaceTracker | None = None  # created on the first camera frame (process_features needs none)
         self.calibrator = Calibrator(cfg.calibration)
-        self.profile: DriverProfile | None = None
-        self._want_calibration = calibrate and cfg.calibration.enabled
-        if not self._want_calibration:
-            self.profile = DriverProfile.defaults(cfg.calibration)
+        self._want_calibration = calibrate
+        self.profile: DriverProfile | None = None if calibrate else DriverProfile.defaults(cfg.calibration)
         self.head_proc = HeadPoseProcessor(cfg.pose)
         self.eye_proc = EyeSignalProcessor(cfg.eyes)
         self.gaze_est = GazeEstimator(cfg.gaze, cfg.gaze_zones)
@@ -106,7 +95,7 @@ class DriverMonitor:
         camera_fps: float | None = None,
     ) -> FrameResult:
         t0 = latency_start if latency_start is not None else time.perf_counter()
-        if self._frame == 0 and self._want_calibration and self.profile is None and not self.calibrator.active:
+        if self._frame == 0 and self._want_calibration and not self.calibrator.active:
             self.start_calibration(t)
         if self.tracker is None:
             self.tracker = FaceTracker(self.cfg.landmarker, self._base_dir)
@@ -120,7 +109,7 @@ class DriverMonitor:
             self.phone_finder.submit(frame_bgr, t)  # non-blocking, at most detect_hz
             self._phone_seen = self.phone_finder.latest(t)
         obs = self.tracker.process(frame_bgr, t)
-        feats = self.features.extract(frame_bgr, obs, t)
+        feats = extract_features(frame_bgr, obs)
         return self.process_features(feats, t, (time.perf_counter() - t0) * 1000.0, camera_fps)
 
     def process_features(
@@ -155,8 +144,8 @@ class DriverMonitor:
         issues: list[QualityIssue] = []
         if calibrating:
             issues.append(QualityIssue.CALIBRATING)
-        if eyes.unreliable_reason in {i.value for i in QualityIssue}:
-            issues.append(QualityIssue(eyes.unreliable_reason))
+        if eyes.issue is not None:
+            issues.append(eyes.issue)
         if feats.brightness < self.cfg.quality.low_light_mean:
             issues.append(QualityIssue.LOW_LIGHT)
         if self._frame > 30 and 0 < fps < self.cfg.quality.low_fps:
@@ -193,4 +182,4 @@ class DriverMonitor:
             gaze=builder.gaze(gaze),
             detections=builder.detections_out(detections),
         )
-        return FrameResult(state, feats, head, eyes, gaze, self._phone_seen)
+        return FrameResult(state, feats, self._phone_seen)

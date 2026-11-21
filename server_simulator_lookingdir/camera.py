@@ -1,8 +1,7 @@
 """Input from the DRIVER CAMERA client: pick out the fields we need from driver_state.
 
 The camera client sends one large JSON ~30x/s. We only read:
-  gaze.yaw_deg          0 = straight ahead, NEGATIVE = LEFT, positive = right (or null)
-  gaze.pitch_deg        0 = straight, POSITIVE = UP, negative = down (or null)
+  gaze.yaw_deg          0 = straight ahead, NEGATIVE = LEFT, positive = right (or null): splits ROAD
   gaze.zone             ROAD, REAR_MIRROR, LEFT_MIRROR, RIGHT_MIRROR, LEFT_SIDE, RIGHT_SIDE, UP, DOWN,
                         UNKNOWN (the camera client decides this from its own mirror/road settings)
   eyes.state            OPEN, CLOSED, UNKNOWN
@@ -28,13 +27,14 @@ ZONE_TO_REGION = {
 
 class Driver:
     """What the camera client last reported."""
-    yaw_deg = None
-    pitch_deg = None
-    zone = None
-    eyes = None
-    face_detected = None
-    calibration = None
-    received_at = None   # time.monotonic() at arrival (the message's own "t" is camera uptime)
+
+    def __init__(self):
+        self.yaw_deg = None
+        self.zone = None
+        self.eyes = None
+        self.face_detected = None
+        self.calibration = None
+        self.received_at = None   # time.monotonic() at arrival (the message's own "t" is camera uptime)
 
 
 driver = Driver()
@@ -45,7 +45,7 @@ def _dict(v):
 
 
 def _angle(v):
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+    if isinstance(v, bool) or not isinstance(v, int | float) or not math.isfinite(v):
         return None
     return float(v)
 
@@ -65,12 +65,11 @@ def handle(msg):
     """Handle one driver_state message (already a dict). Never raises."""
     gaze = _dict(msg.get("gaze"))
     driver.yaw_deg = _angle(gaze.get("yaw_deg"))
-    driver.pitch_deg = _angle(gaze.get("pitch_deg"))
     zone = gaze.get("zone")
     driver.zone = zone if isinstance(zone, str) else None
     driver.eyes = _dict(msg.get("eyes")).get("state")
     driver.face_detected = _dict(msg.get("quality")).get("face_detected")
     driver.calibration = _dict(msg.get("calibration")).get("status")
     driver.received_at = time.monotonic()
-    log.debug("driver: yaw=%s pitch=%s zone=%s eyes=%s face=%s calib=%s", driver.yaw_deg,
-              driver.pitch_deg, driver.zone, driver.eyes, driver.face_detected, driver.calibration)
+    log.debug("driver: yaw=%s zone=%s eyes=%s face=%s calib=%s", driver.yaw_deg, driver.zone,
+              driver.eyes, driver.face_detected, driver.calibration)

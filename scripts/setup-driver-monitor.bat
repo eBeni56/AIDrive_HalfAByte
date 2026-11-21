@@ -1,7 +1,7 @@
 @echo off
 rem Prepares the driver monitor on this PC (first run only) and sets DM_RUN, the command that starts it.
 rem Called by start.bat. Uses uv if it is installed (as in driver_monitor/README.md), otherwise Python 3.12
-rem from the py launcher with a plain venv in driver_monitor\.venv (MediaPipe needs Python 3.9 - 3.12).
+rem from the py launcher with a plain venv in driver_monitor\.venv (the driver monitor needs Python 3.12).
 pushd "%~dp0..\driver_monitor"
 
 where uv >nul 2>&1

@@ -38,7 +38,7 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
     reporter.print_json = opts.print_json
     writer = JsonlWriter(opts.json_path) if opts.json_path else None
     sender = WebSocketSender(cfg.websocket) if cfg.websocket.enabled else None
-    overlay = OverlayRenderer(mirror=True)
+    overlay = OverlayRenderer()
     stream: MjpegServer | None = None
     if cfg.camera_stream.enabled:
         try:
@@ -51,7 +51,7 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
         + (f", streaming JSON to {cfg.websocket.url}" if sender else "")
         + (f", camera stream at {stream.url}" if stream else "")
     )
-    if opts.calibrate and cfg.calibration.enabled:
+    if opts.calibrate:
         reporter.line(
             "Calibration starts now: sit normally, look straight ahead; close your eyes when asked."
         )
@@ -68,9 +68,7 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
                 continue
             frame, t = item
             started = time.perf_counter()
-            result = monitor.process(
-                frame, t, latency_start=started, camera_fps=source.fps if not opts.video else None
-            )
+            result = monitor.process(frame, t, latency_start=started, camera_fps=source.fps)
             frames += 1
             while monitor.notes:
                 reporter.line(monitor.notes.pop(0))
@@ -78,15 +76,15 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
             if writer is not None:
                 writer.write(result.state)
             if sender is not None:
-                sender.send(result.state, t)
+                sender.send(result.state)
                 for msg in sender.events():
                     reporter.line(msg)
-            to_stream = stream is not None and stream.wants_frame(t)
-            if not opts.show_window and not to_stream:
+            to_stream = stream if stream is not None and stream.wants_frame(t) else None
+            if not opts.show_window and to_stream is None:
                 continue
             preview = overlay.render(frame, result)
-            if to_stream:
-                stream.publish(preview)
+            if to_stream is not None:
+                to_stream.publish(preview)
             if not opts.show_window:
                 continue
             cv2.imshow(WINDOW, preview)

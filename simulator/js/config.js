@@ -20,7 +20,7 @@ const TYPES = {
   motorcycle: { w: 0.9, l: 2.2, color: "#b57bff" },
   pedestrian: { w: 0.9, l: 0.9, color: "#4cc2ff" },
 };
-const EGO_SIZE = { w: 1.9, l: 4.5 };
+const EGO_SIZE = { w: TYPES.car.w, l: TYPES.car.l };   // the ego car is a car
 const EGO_COLOR = "#ffffff";
 
 // ------------------------------ BEHAVIOR TABLE ---------------------------------------
@@ -60,14 +60,16 @@ const GAZE_REGION_LABEL = {
   mirror_center: "REAR-VIEW MIRROR", mirror_left: "LEFT MIRROR", mirror_right: "RIGHT MIRROR",
   away: "AWAY",
 };
-// Badge text + color per status ("ok" and "away" text is built from the region).
+// Badge text + color for each status the server sends (the "ok" text is built from the region). A message
+// with any other status is ignored.
 const GAZE_STATUS_STYLE = {
   ok:              { color: "#2ecc71" },
-  away:            { color: "#ffb020" },
   no_face:         { color: "#ff4d4d", text: "No face detected" },
   eyes_closed:     { color: "#ff4d4d", text: "Eyes closed" },
   calibrating:     { color: "#4da3ff", text: "Camera calibrating - look straight ahead" },
   no_gaze_client:  { color: "#8a8f9c", text: "No camera connected" },
-  stale:           { color: "#8a8f9c", text: "No gaze data" },
 };
-const GAZE_HIGHLIGHT = { fill: "rgba(255,40,40,", border: "#ff2a2a", away: "#ffb020" };  // red frame; fill alpha added when drawing
+const GAZE_AWAY_STYLE = { color: "#ffb020" };                        // "ok" with region "away"
+const GAZE_STALE_STYLE = { color: "#8a8f9c", text: "No gaze data" };  // nothing received for GAZE_TIMEOUT_MS
+// Highlight: red frame (the fill's alpha is added when drawing); the "AWAY" label in the away color
+const GAZE_HIGHLIGHT = { fill: "rgba(255,40,40,", border: "#ff2a2a", away: GAZE_AWAY_STYLE.color };

@@ -59,7 +59,7 @@ class DecideGazeTest(unittest.TestCase):
         self.assertEqual(self.decide(driver_state(face=False)), ("no_face", None))
         self.assertEqual(self.decide(driver_state(eyes="CLOSED")), ("eyes_closed", None))
         self.assertEqual(self.decide(driver_state(calib="CALIBRATING")), ("calibrating", None))
-        self.assertEqual(self.decide(driver_state(eyes="ALMOST_CLOSED")), ("ok", "front_center"))
+        self.assertEqual(self.decide(driver_state(eyes="SOMETHING_NEW")), ("ok", "front_center"))
 
     def test_missing_fields_are_no_data(self):
         self.assertEqual(self.decide({"type": "driver_state"}), ("ok", "away"))

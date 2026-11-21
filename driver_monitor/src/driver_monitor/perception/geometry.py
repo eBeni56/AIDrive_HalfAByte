@@ -1,4 +1,4 @@
-"""Pure geometric features on PIXEL coordinates (never on normalized ones - see tutorial 10.5)."""
+"""Pure geometric features on PIXEL coordinates (normalized ones have different x and y scales)."""
 
 from __future__ import annotations
 

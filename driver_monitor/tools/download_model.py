@@ -1,5 +1,5 @@
 """Download the MediaPipe models into models/:
-  face_landmarker.task      Face Landmarker (eyes, mouth, head, gaze)
+  face_landmarker.task      Face Landmarker (eyes, head pose, gaze)
   efficientdet_lite0.tflite Object Detector, COCO classes (phone in the hand: PHONE_USE)
 
 Usage:  uv run python tools/download_model.py [--force]

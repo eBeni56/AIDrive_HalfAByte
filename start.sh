@@ -11,17 +11,20 @@ ROOT=$(pwd)
 # --- driver monitor: uv if installed (as in driver_monitor/README.md), else a plain venv (first run only)
 cd driver_monitor || exit 1
 if command -v uv >/dev/null 2>&1; then
-  DM_RUN="uv run python -m driver_monitor"
-  { [ -f models/face_landmarker.task ] && [ -f models/efficientdet_lite0.tflite ]; } || uv run python tools/download_model.py || exit 1
+  DM_PY="uv run python"
 else
   if [ ! -x .venv/bin/python ]; then
     echo "Setting up the driver monitor in driver_monitor/.venv - first run only, takes a few minutes ..."
-    python3 -m venv .venv && .venv/bin/python -m pip install -q --disable-pip-version-check -e . || {
-      echo "The driver monitor needs uv (https://docs.astral.sh/uv/) or Python 3.9 - 3.12."; exit 1; }
+    PY=$(command -v python3.12 || command -v python3)   # the driver monitor needs Python 3.12
+    "$PY" -m venv .venv && .venv/bin/python -m pip install -q --disable-pip-version-check -e . || {
+      echo "The driver monitor needs uv (https://docs.astral.sh/uv/) or Python 3.12."; exit 1; }
   fi
-  DM_RUN=".venv/bin/python -m driver_monitor"
-  { [ -f models/face_landmarker.task ] && [ -f models/efficientdet_lite0.tflite ]; } || .venv/bin/python tools/download_model.py || exit 1
+  DM_PY=".venv/bin/python"
 fi
+DM_RUN="$DM_PY -m driver_monitor"
+# face_landmarker.task (face) and efficientdet_lite0.tflite (phone): downloads only what is missing
+# shellcheck disable=SC2086  # DM_PY is meant to be split into words ("uv run python")
+{ [ -f models/face_landmarker.task ] && [ -f models/efficientdet_lite0.tflite ]; } || $DM_PY tools/download_model.py || exit 1
 # shellcheck disable=SC2086  # DM_RUN and DM_ARGS are meant to be split into words
 $DM_RUN --no-window --scroll $DM_ARGS > "$ROOT/driver_monitor.log" 2>&1 &
 DM_PID=$!

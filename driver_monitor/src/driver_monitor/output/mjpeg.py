@@ -4,7 +4,6 @@ The dashboard shows it with  <img src="http://localhost:8090/stream.mjpg">.  The
 webcam itself: on Windows only one program can use it, and that is this one.
 
   GET /stream.mjpg   multipart/x-mixed-replace stream, at most `fps` frames per second
-  GET /frame.jpg     the latest frame once
 
 The camera loop only calls `wants_frame()` and `publish()`. A frame is drawn and JPEG-encoded only while at
 least one viewer is connected, so the stream costs nothing when nobody watches. A slow viewer just skips
@@ -61,9 +60,9 @@ class MjpegServer:
 
     def publish(self, img: npt.NDArray[np.uint8]) -> None:
         h, w = img.shape[:2]
-        if self.cfg.max_width > 0 and w > self.cfg.max_width:
-            img = cv2.resize(img, (self.cfg.max_width, round(h * self.cfg.max_width / w)), interpolation=cv2.INTER_AREA)
-        ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, self.cfg.jpeg_quality])
+        mw = self.cfg.max_width
+        small = cv2.resize(img, (mw, round(h * mw / w)), interpolation=cv2.INTER_AREA) if 0 < mw < w else img
+        ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, self.cfg.jpeg_quality])
         if not ok:
             return
         with self._cond:
@@ -91,7 +90,7 @@ class MjpegServer:
         server = self
 
         class Handler(BaseHTTPRequestHandler):
-            def log_message(self, format: str, *args: object) -> None:  # noqa: A002 - quiet console
+            def log_message(self, format: str, *args: object) -> None:  # quiet console
                 pass
 
             def _headers(self, content_type: str) -> None:
@@ -101,28 +100,11 @@ class MjpegServer:
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
 
-            def do_GET(self) -> None:  # noqa: N802 - http.server API
-                path = self.path.split("?", 1)[0]
-                if path == "/stream.mjpg":
+            def do_GET(self) -> None:  # the name is http.server's API
+                if self.path.split("?", 1)[0] == "/stream.mjpg":
                     self._stream()
-                elif path == "/frame.jpg":
-                    self._frame()
                 else:
-                    self.send_error(404, "use /stream.mjpg or /frame.jpg")
-
-            def _frame(self) -> None:
-                with server._cond:
-                    server._viewers += 1
-                try:
-                    got = server._next_jpeg(0)
-                finally:
-                    with server._cond:
-                        server._viewers -= 1
-                if got is None:
-                    self.send_error(503, "no frame yet")
-                    return
-                self._headers("image/jpeg")
-                self.wfile.write(got[1])
+                    self.send_error(404, "use /stream.mjpg")
 
             def _stream(self) -> None:
                 self._headers(f"multipart/x-mixed-replace; boundary={BOUNDARY}")

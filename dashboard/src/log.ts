@@ -2,9 +2,9 @@
 import { useSyncExternalStore } from "react";
 
 /** Colour of a line's tag and text. */
-export type Tone = "sim" | "cam" | "ok" | "info" | "warn" | "danger" | "muted";
+export type Tone = "sim" | "cam" | "ok" | "warn" | "danger" | "muted";
 
-export interface LogLine {
+interface LogLine {
   id: number;
   time: string; // HH:MM:SS
   tag: string; // e.g. SIM, CAM, OK, MISSED, DRIVER
@@ -46,5 +46,5 @@ export function useLog(log: Log): LogLine[] {
   return useSyncExternalStore(log.subscribe, log.snapshot);
 }
 
-/** Left terminal: the simulation (its objects, zones, reactions) and where the driver looks. */
+/** The Simulation terminal: the simulation (its objects, zones, reactions) and where the driver looks. */
 export const simLog = new Log();

@@ -32,8 +32,6 @@ packages = ["src/driver_monitor"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["hardware: needs a camera and the MediaPipe model (skipped by default)"]
-addopts = "-m 'not hardware'"
 
 [tool.ruff]
 line-length = 110

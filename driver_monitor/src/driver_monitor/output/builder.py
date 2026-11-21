@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 from driver_monitor.common.enums import DetectionStatus, Severity
-from driver_monitor.detectors.base import Detection
+from driver_monitor.detectors.base import Detection, r
 from driver_monitor.output.schema import DetectionOut, Eyes, Gaze, Head, Summary
 from driver_monitor.signals.eyes import EyesSignal
 from driver_monitor.signals.gaze import GazeSignal
 from driver_monitor.signals.head import HeadSignal
-
-
-def _r(x: float | None, nd: int = 2) -> float | None:
-    return None if x is None else round(float(x), nd)
 
 
 def summary(detections: list[Detection]) -> Summary:
@@ -27,7 +23,7 @@ def detections_out(detections: list[Detection]) -> list[DetectionOut]:
             severity=d.severity,
             status=d.status,
             started_t=round(d.started_t, 3),
-            ended_t=_r(d.ended_t, 3),
+            ended_t=r(d.ended_t, 3),
             duration_s=round(d.duration_s, 2),
             details=d.details,
         )
@@ -38,12 +34,12 @@ def detections_out(detections: list[Detection]) -> list[DetectionOut]:
 
 
 def eyes(e: EyesSignal) -> Eyes:
-    return Eyes(state=e.state, state_for_s=round(e.state_for_s, 2), openness=_r(e.openness), source=e.source)
+    return Eyes(state=e.state, state_for_s=round(e.state_for_s, 2), openness=r(e.openness), source=e.source)
 
 
 def head(h: HeadSignal) -> Head:
-    return Head(yaw_deg=_r(h.yaw, 1), pitch_deg=_r(h.pitch, 1), roll_deg=_r(h.roll, 1))
+    return Head(yaw_deg=r(h.yaw, 1), pitch_deg=r(h.pitch, 1), roll_deg=r(h.roll, 1))
 
 
 def gaze(g: GazeSignal) -> Gaze:
-    return Gaze(zone=g.zone, zone_for_s=round(g.zone_for_s, 2), yaw_deg=_r(g.yaw, 1), pitch_deg=_r(g.pitch, 1))
+    return Gaze(zone=g.zone, zone_for_s=round(g.zone_for_s, 2), yaw_deg=r(g.yaw, 1), pitch_deg=r(g.pitch, 1))

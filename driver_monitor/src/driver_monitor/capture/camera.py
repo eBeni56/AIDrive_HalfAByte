@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 
+from driver_monitor.common.filters import Ema
 from driver_monitor.config import CameraConfig
 
 Frame = npt.NDArray[np.uint8]
@@ -30,33 +31,15 @@ class FrameSource(Protocol):
     def close(self) -> None: ...
     def describe(self) -> str: ...
     @property
-    def fps(self) -> float | None: ...
+    def fps(self) -> float | None:
+        """The measured camera frame rate; None for a video file."""
+        ...
 
 
 def _fourcc(cap: cv2.VideoCapture) -> str:
     code = int(cap.get(cv2.CAP_PROP_FOURCC))
     text = "".join(chr((code >> 8 * i) & 0xFF) for i in range(4))
     return text if text.isalnum() else "native"  # MSMF does not report a readable FourCC
-
-
-class _RateMeter:
-    """Frames per second from the intervals between delivered frames (EMA over ~1 s)."""
-
-    def __init__(self, tau_s: float = 1.0) -> None:
-        self.tau_s = tau_s
-        self._last: float | None = None
-        self._dt: float | None = None
-
-    def tick(self, t: float) -> None:
-        if self._last is not None and t > self._last:
-            dt = t - self._last
-            a = min(dt / self.tau_s, 1.0)
-            self._dt = dt if self._dt is None else self._dt + a * (dt - self._dt)
-        self._last = t
-
-    @property
-    def fps(self) -> float | None:
-        return 1.0 / self._dt if self._dt else None
 
 
 def _open(index: int, backend: str, cfg: CameraConfig) -> cv2.VideoCapture | None:
@@ -67,7 +50,7 @@ def _open(index: int, backend: str, cfg: CameraConfig) -> cv2.VideoCapture | Non
     # Size first, then format: DirectShow only accepts MJPG for a resolution it already selected.
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.height)
-    if cfg.mjpg and backend == "dshow":
+    if backend == "dshow":  # MSMF negotiates a compressed format by itself
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FPS, cfg.fps)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # always process the newest frame
@@ -99,20 +82,23 @@ class Camera:
                 "Run with --list-cameras to see the available cameras, then use --camera N."
             )
         self._cap = cap
-        self._meter = _RateMeter()
+        self._interval = Ema(1.0)  # seconds between delivered frames, averaged over ~1 s
+        self._last_t: float | None = None
         self._t0 = time.monotonic()
 
     @property
     def fps(self) -> float | None:
         """Frames per second the camera actually delivers (measured, not the requested value)."""
-        return self._meter.fps
+        return 1.0 / self._interval.value if self._interval.value else None
 
     def read(self) -> tuple[Frame, float] | None:
         ok, frame = self._cap.read()
         if not ok or frame is None:
             return None
         t = time.monotonic() - self._t0
-        self._meter.tick(t)
+        if self._last_t is not None and t > self._last_t:
+            self._interval.update(t - self._last_t, t)
+        self._last_t = t
         return cast(Frame, frame), t
 
     def describe(self) -> str:
@@ -189,7 +175,8 @@ class VideoFile:
 
     @property
     def fps(self) -> float | None:
-        return self._fps
+        """None: a video file has no camera whose rate could be measured."""
+        return None
 
     def describe(self) -> str:
         return f"video {self.path.name} @ {self._fps:.1f} fps"

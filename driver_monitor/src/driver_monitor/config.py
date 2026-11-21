@@ -28,7 +28,6 @@ class CameraConfig(_Section):
     # auto = Media Foundation first (30 fps at 720p), DirectShow as fallback (often stuck at 10 fps: it
     # ignores the MJPG request and stays in raw YUY2, which USB 2.0 cannot carry faster at 720p).
     backend: Literal["auto", "dshow", "msmf", "any"] = "auto"
-    mjpg: bool = True  # request MJPG on DirectShow (MSMF negotiates a compressed format itself)
 
 
 class LandmarkerConfig(_Section):
@@ -40,22 +39,13 @@ class LandmarkerConfig(_Section):
 
 
 class PoseConfig(_Section):
-    """Sign conversion from the matrix decomposition to the schema convention.
+    """Smoothing of the head angles (One-Euro filter)."""
 
-    The decomposition (tutorial ch. 6) gives +yaw = driver's left, +pitch = down, +roll = driver's right.
-    The schema wants  +yaw = driver's right, +pitch = up, +roll = toward the right shoulder.
-    If the live test shows a wrong sign on your setup, flip it here - nowhere else.
-    """
-
-    yaw_sign: float = -1.0
-    pitch_sign: float = -1.0
-    roll_sign: float = 1.0
-    filter_min_cutoff: float = 1.0  # One-Euro filter for head angles
+    filter_min_cutoff: float = 1.0
     filter_beta: float = 0.05
 
 
 class CalibrationConfig(_Section):
-    enabled: bool = True
     open_phase_s: float = 6.0  # "look straight ahead, eyes open normally"
     closed_phase_s: float = 3.0  # "close your eyes" (set use_closed_phase=false to skip)
     use_closed_phase: bool = True
@@ -118,11 +108,11 @@ class GazeConfig(_Section):
     # blendshape part of the vertical eye angle is used only while the eyes are clearly open; below this
     # openness the vertical eye angle comes from the iris position alone.
     blend_pitch_min_openness: float = 0.6
-    # the road box (gaze angles); anything below it is DOWN, beside it LEFT_SIDE / RIGHT_SIDE, above it UP
+    # The road box (gaze angles). Outside it: a mirror (gaze_zones), else DOWN below it, UP above it and
+    # LEFT_SIDE / RIGHT_SIDE far beside it. Its hysteresis is gaze_zones.hysteresis_deg.
     on_road_yaw_deg: float = 20.0
     on_road_pitch_down_deg: float = 15.0
     on_road_pitch_up_deg: float = 15.0
-    on_road_hysteresis_deg: float = 3.0
 
 
 class ZoneBox(_Section):
@@ -152,8 +142,8 @@ class GazeZonesConfig(_Section):
     and the measured angles vary a lot (eyeLookDown alone is -30..-50 deg), so it must not depend on how low
     or how far out exactly the driver looks. The rear-view mirror is the top centre.
     Adjust to the actual screen layout; the overlay shows the live gaze angles and zone.
-    The road box itself is gaze.on_road_*; anything below it is DOWN, beside it LEFT_SIDE / RIGHT_SIDE,
-    above it UP.
+    The road box itself is gaze.on_road_*. Outside the road and the mirrors: DOWN below the road box, UP
+    above it, LEFT_SIDE / RIGHT_SIDE beside it.
     """
 
     rear_mirror: ZoneBox = Field(
@@ -171,7 +161,7 @@ class GazeZonesConfig(_Section):
             yaw_min_deg=20.0, yaw_max_deg=55.0, pitch_min_deg=-90.0, pitch_max_deg=15.0
         )
     )
-    hysteresis_deg: float = 3.0  # a zone is kept until the gaze is this far outside its box
+    hysteresis_deg: float = 3.0  # a zone (mirror, road, down) is kept until the gaze is this far outside its box
 
 
 class DistractionConfig(_Section):
@@ -214,16 +204,14 @@ class WebSocketConfig(_Section):
     """Streams every driver_state JSON message to a WebSocket server while the camera runs.
 
     The address normally comes from config/driver_monitor.yaml (loaded automatically) or any --config file.
-    The sender runs in its own thread: a missing or slow server never slows down the camera loop; the program
-    keeps reconnecting and, while disconnected or behind, only the newest messages are kept.
+    Every processed frame is sent (~30 per second). The sender runs in its own thread: a missing or slow
+    server never slows down the camera loop; the program keeps reconnecting and, while disconnected or
+    behind, only the newest messages are kept.
     """
 
     enabled: bool = True
     url: str = "ws://localhost:8765"
-    max_rate_hz: float = 0.0  # 0 = every processed frame (~30/s); e.g. 10 = at most 10 messages per second
     reconnect_s: float = 2.0  # wait between connection attempts
-    connect_timeout_s: float = 3.0
-    queue_size: int = 30  # messages buffered while sending is slower than the camera (oldest dropped)
 
 
 class CameraStreamConfig(_Section):
@@ -280,4 +268,5 @@ def load_config(path: str | Path | None = None) -> AppConfig:
 
 
 def dump_config(config: AppConfig) -> str:
-    return yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False, allow_unicode=True)
+    text: str = yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False, allow_unicode=True)
+    return text

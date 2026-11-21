@@ -6,8 +6,6 @@ const gaze = { status: null, region: null, t: 0 };
 const badgeEl = document.getElementById("gaze-badge");
 let badgeKey = "";   // last rendered badge content, to skip needless DOM writes
 
-const GAZE_STATUSES = ["ok", "no_face", "eyes_closed", "calibrating", "no_gaze_client"];
-
 function gazeFresh(now) { return gaze.t > 0 && (now === undefined ? performance.now() : now) - gaze.t <= GAZE_TIMEOUT_MS; }
 
 // Parse one incoming frame. Ignores anything invalid; never throws.
@@ -16,7 +14,7 @@ function handleGazeMessage(data) {
     if (typeof data !== "string") return;
     const m = JSON.parse(data);
     if (!m || typeof m !== "object" || Array.isArray(m) || m.event !== "gaze_update") return;
-    if (!GAZE_STATUSES.includes(m.status)) return;
+    if (typeof m.status !== "string" || !Object.hasOwn(GAZE_STATUS_STYLE, m.status)) return;
     const region = m.status === "ok" ? m.region : null;
     if (m.status === "ok" && !GAZE_REGIONS.includes(region)) return;
     gaze.status = m.status; gaze.region = region;
@@ -29,9 +27,9 @@ function handleGazeMessage(data) {
 function updateGazeBadge() {
   if (!badgeEl) return;
   let style, text;
-  if (!gazeFresh()) { style = GAZE_STATUS_STYLE.stale; text = style.text; }
+  if (!gazeFresh()) { style = GAZE_STALE_STYLE; text = style.text; }
   else {
-    if (gaze.status === "ok" && gaze.region === "away") { style = GAZE_STATUS_STYLE.away; text = "Gaze: AWAY"; }
+    if (gaze.status === "ok" && gaze.region === "away") { style = GAZE_AWAY_STYLE; text = "Gaze: AWAY"; }
     else if (gaze.status === "ok") { style = GAZE_STATUS_STYLE.ok; text = "Gaze: " + gaze.region; }
     else { style = GAZE_STATUS_STYLE[gaze.status]; text = style.text; }
   }

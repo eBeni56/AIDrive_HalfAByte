@@ -1,11 +1,11 @@
 # Everything incl. the webcam driver monitor (on the host) and the browser windows: start.bat / ./start.sh
 # Docker part only:  docker compose up --build   (server + simulator + dashboard)
-# Video replay (needs driver_monitor/recordings/): docker compose --profile replay up --build
+# Video replay (needs a video in driver_monitor/recordings/, not in git): docker compose --profile replay up --build
 #   simulator       http://localhost:8080 (SIMULATOR_PORT)   browser page; its WebSocket goes to /ws
 #   dashboard       http://localhost:8081 (DASHBOARD_PORT)   camera + chat + detections; WebSocket to /ws,
 #                                                            camera image from the driver monitor (:8090)
 #   server          ws://localhost:8765 (SERVER_PORT)        receives the simulator, the driver monitor, the dashboard
-#   model-download  one-shot: downloads the MediaPipe model into driver_monitor/models/ if missing
+#   model-download  one-shot: downloads the MediaPipe models into driver_monitor/models/ if missing
 #   driver-monitor  replays driver_monitor/recordings/$DM_VIDEO and streams driver_state to the server
 # Ports and the video are set in .env.
 

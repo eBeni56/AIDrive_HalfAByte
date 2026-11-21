@@ -60,9 +60,9 @@ def test_flicker_shorter_than_end_s_keeps_one_episode() -> None:
     assert ds[-1].duration_s > 3.5
 
 
-def test_reset_forgets_everything() -> None:
-    det = PhoneDetector(PhoneConfig())
-    run(det, [(1.0, 0.6)])
-    det.reset()
-    assert not det.active
-    assert run(det, [(2.0, None)]) == []
+def test_a_phone_seen_at_time_zero_is_measured_from_zero() -> None:
+    # t = 0.0 is a valid first sighting (a video file starts there); it used to be read as "no time"
+    ds = run(PhoneDetector(PhoneConfig()), [(2.0, 0.7), (2.0, None)])
+    assert statuses(ds) == [DetectionStatus.STARTED, DetectionStatus.ENDED]
+    assert ds[0].started_t == 0.0
+    assert 1.7 < ds[-1].details["seen_for_s"] <= 2.0  # was negative: measured from the end instead

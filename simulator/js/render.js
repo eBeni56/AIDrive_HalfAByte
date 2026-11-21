@@ -1,4 +1,4 @@
-// Drive phase rendering: cameras, projection, sprites, cockpit, mirrors, minimap, visibility.
+// Drive phase rendering: cameras, projection, sprites, cockpit, mirrors, minimap.
 
 // =====================================================================================
 // ============================ DRIVE PHASE (first-person) ============================
@@ -10,8 +10,8 @@
 //   y_m    = forward meters,  + ahead of ego, - behind.
 //   z      = meters above the road (rendering only, never sent).
 // The ego car never moves, so every speed is both "relative to us" and "over the ground".
-// The camera positions below (driver's eye, mirrors) are used only for drawing and for visibility
-// (o.vis; display-side only, the tick sends every object regardless); they never shift x_m / y_m.
+// The camera positions below (driver's eye, mirrors) are used only for drawing; they never shift x_m / y_m
+// (every tick sends the position of every object, seen or not).
 
 // ------------------------------ CAMERAS ----------------------------------------------
 const EYE = { x: -0.35, y: 0.0, z: 1.2 };  // driver's eye: left-hand drive, so a bit left of the car's center
@@ -28,9 +28,9 @@ const MIRROR_CAMS = {
   mirror_left:   { x: -0.95, y: 0.7, z: 1.0, fovDeg: 60, aimDeg: -12 },
   mirror_right:  { x: 0.95,  y: 0.7, z: 1.0, fovDeg: 60, aimDeg: 12 },
 };
-// Text shown above objects in the first-person views (display only; events still use the real type)
-const LABEL_NAME = { car: "car", truck: "truck", bicycle: "bike", motorcycle: "motorbike", pedestrian: "pedestrian" };
-const VIEW_NAMES = ["windshield", "mirror_center", "mirror_left", "mirror_right"];
+// Text shown above objects in the first-person views when it is not the type itself (display only; events
+// still use the real type)
+const LABEL_NAME = { bicycle: "bike", motorcycle: "motorbike" };
 
 // Real-world size of each sprite in the first-person view, meters (w = width, h = height).
 // Length for "which face points at the camera" comes from TYPES[type].l.
@@ -48,7 +48,7 @@ const POST_SPACING = 25, POST_RANGE = 300;   // roadside delineator posts, for d
 
 // ------------------------------ PROJECTION -------------------------------------------
 // A "view" is one virtual pinhole camera plus the canvas rectangle it paints into:
-//   { name, camX, camY, camZ, back, aim, focal, cx, horizonY, clip: {x, y, w, h} }
+//   { camX, camY, camZ, back, aim, focal, cx, horizonY, clip: {x, y, w, h} }   (mirrors also: name, glass, bodyW)
 //
 // Step 1 — toCam(): world (x, y) -> camera frame (lat, depth)
 //   Windshield (back = false):
@@ -220,12 +220,8 @@ function drawLabel(c, text, x, y, px) {
   c.fillStyle = "#fff"; c.fillText(text, x, y - 3);
 }
 
-function rectsOverlap(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
 // ------------------------------ SCENE ------------------------------------------------
-// Draw sky, ground, road and objects for one view, and record per object whether this view shows it.
+// Draw sky, ground, road and objects for one view.
 function drawWorld(c, v, objs) {
   const { x, y, w, h } = v.clip;
   const sky = c.createLinearGradient(0, y, 0, v.horizonY);
@@ -264,7 +260,6 @@ function drawWorld(c, v, objs) {
   // its rear (y - length/2) in the windshield, its front (y + length/2) in a mirror.
   const list = [];
   for (const o of objs) {
-    o.vis[v.name] = false;
     const half = o.type === "pedestrian" ? 0 : TYPES[o.type].l / 2;
     const p = projectBase(v, o.x_m, v.back ? o.y_m + half : o.y_m - half);
     if (p) list.push({ o, p });
@@ -273,10 +268,6 @@ function drawWorld(c, v, objs) {
   for (const { o, p } of list) {
     const pw = SPRITE[o.type].w * p.scale, ph = SPRITE[o.type].h * p.scale;
     drawSprite(c, o.type, p.sx, p.sy, pw, ph, TYPES[o.type].color, v.back, o.walked);
-    // Visibility comes from exactly this rectangle: the sprite's on-screen box after projection,
-    // tested against what is really open glass for this view.
-    const box = { x: p.sx - pw / 2, y: p.sy - ph, w: pw, h: ph };
-    o.vis[v.name] = v.back ? rectsOverlap(box, v.clip) : windshieldSees(box);
     if (ph > 22) drawLabel(c, LABEL_NAME[o.type] || o.type, p.sx, p.sy - ph, v.back ? 11 : 16);
   }
 }
@@ -290,8 +281,7 @@ function pillarGeom(W, H) {
     right: { outerB: W, innerB: W * 0.945, innerT: W * 0.85,  outerT: W * 0.9 } };
 }
 
-// Static cockpit overlay. Also drawn once into an offscreen "occlusion mask" (see buildMask), so
-// whatever this function covers really hides objects for visibility.
+// Static cockpit overlay: roof liner, A-pillars, dashboard, steering wheel.
 function drawCockpit(c, W, H) {
   const body = "#16181d", dash = "#23262e", rim = "#0b0c0f";
   c.fillStyle = body;
@@ -352,7 +342,6 @@ function drawMirrorGlass(c, m) {     // our car's flank, dark tint, thin inner b
 // Top-down overview in its own full-height panel on the right (separate canvas), drawn in the same
 // style as the setup screen.
 // Shows every object's setup position (faded icon) and a dashed trail to where it is now.
-// Display only: it is NOT part of the cockpit occlusion mask, so it never affects visibility.
 const MINIMAP = {
   widthFrac: 0.30,     // panel width as a fraction of the window width (the driving view gets the rest)
   margin: 6,           // gap between the panel edge and the map, px
@@ -402,7 +391,7 @@ function drawMinimap(c) {
   const roadL = toMap(-ROAD_HALF_M, 0).x, roadW = 2 * ROAD_HALF_M * s, grassW = (m.w - roadW) / 2;
   c.fillStyle = "rgba(47,107,54,.8)";
   for (let i = 0; i < 12; i++) {
-    const fx = (i * 0.37 + 0.11) % 1, fy = (i * 0.61 + 0.05) % 1;
+    const { fx, fy } = tuftSpot(i);
     const tx = fx < 0.5 ? m.x + 2 + fx * 2 * (grassW - 10) : roadL + roadW + 4 + (fx - 0.5) * 2 * (grassW - 10);
     c.beginPath(); c.ellipse(tx + 3, m.y + fy * m.h, 3.5, 3, 0, Math.PI, 2 * Math.PI); c.fill();
   }
@@ -448,10 +437,10 @@ function drawMinimap(c) {
   c.restore();
 }
 
-// ------------------------------ VIEW GEOMETRY & VISIBILITY ---------------------------
+// ------------------------------ VIEW GEOMETRY ----------------------------------------
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
-let VW = null;   // { W, H, PW, main, mirrors, mask, mini }, rebuilt on resize. W x H = driving view, PW = minimap panel width
+let VW = null;   // { W, H, PW, main, mirrors, mini }, rebuilt on resize. W x H = driving view, PW = minimap panel width
 const miniCanvas = document.getElementById("minimap");
 const mctx = miniCanvas.getContext("2d");
 
@@ -467,7 +456,7 @@ function resizeView() {
   miniCanvas.style.width = PW + "px"; miniCanvas.style.height = H + "px";
   miniCanvas.width = Math.round(PW * dpr); miniCanvas.height = Math.round(H * dpr);
   mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const main = { name: "windshield", camX: EYE.x, camY: EYE.y, camZ: EYE.z, back: false, aim: 0,
+  const main = { camX: EYE.x, camY: EYE.y, camZ: EYE.z, back: false, aim: 0,
     focal: (W / 2) / Math.tan(rad(FOV_DEG) / 2), cx: W / 2, horizonY: H * HORIZON_FRAC,
     clip: { x: 0, y: 0, w: W, h: H } };
   const rects = mirrorRects(W, H);
@@ -478,34 +467,7 @@ function resizeView() {
       glass: g, bodyW,
       clip: { x: g.body < 0 ? g.x + bodyW : g.x, y: g.y, w: g.w - bodyW, h: g.h } };  // glass minus our flank
   });
-  VW = { W, H, PW, main, mirrors, mask: buildMask(W, H, mirrors), mini: miniLayout(PW, H) };
-}
-
-// Occlusion mask for the windshield: the cockpit and the mirror housings drawn once, opaque, into an
-// offscreen canvas. A pixel with alpha < 128 is open glass (windshield or front side window).
-function buildMask(W, H, mirrors) {
-  const off = document.createElement("canvas");
-  off.width = W; off.height = H;
-  const c = off.getContext("2d", { willReadFrequently: true });
-  drawCockpit(c, W, H);
-  for (const m of mirrors) drawMirrorHousing(c, m);
-  return c.getImageData(0, 0, W, H).data;
-}
-
-// "windshield" visibility: the sprite box, cut by the canvas edge (the frame), must contain at least
-// one pixel of open glass, i.e. it is not entirely behind A-pillars, dashboard, wheel or a mirror.
-const MASK_STEP = 3;   // sample every 3 px
-function windshieldSees(b) {
-  const { W, H, mask } = VW;
-  const x0 = Math.max(0, Math.floor(b.x)), x1 = Math.min(W - 1, Math.ceil(b.x + b.w));
-  const y0 = Math.max(0, Math.floor(b.y)), y1 = Math.min(H - 1, Math.ceil(b.y + b.h));
-  if (x0 > x1 || y0 > y1) return false;                       // fully outside the frame
-  for (let yy = y0; yy <= y1; yy += MASK_STEP) {
-    for (let xx = x0; xx <= x1; xx += MASK_STEP) {
-      if (mask[(yy * W + xx) * 4 + 3] < 128) return true;
-    }
-  }
-  return false;
+  VW = { W, H, PW, main, mirrors, mini: miniLayout(PW, H) };
 }
 
 function render() {

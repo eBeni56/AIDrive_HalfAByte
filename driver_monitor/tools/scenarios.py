@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 
+from driver_monitor.calibration.profile import default_closed
 from driver_monitor.config import AppConfig
 from driver_monitor.output.schema import DriverState
 from driver_monitor.perception.features import EyeFeatures, FaceFeatures, FrameFeatures
@@ -38,9 +39,8 @@ def synth_face(p: dict[str, float], cfg: AppConfig) -> FaceFeatures | None:
     if p["face"] < 0.5:
         return None
     c, g = cfg.calibration, cfg.gaze
-    open_ear, closed_ear = c.default_open_ear, c.default_open_ear * c.default_closed_ear_ratio
-    open_b = c.default_open_blink
-    closed_b = min(open_b + c.default_closed_blink_offset, 0.9)
+    open_ear, open_b = c.default_open_ear, c.default_open_blink
+    closed_ear, closed_b = default_closed(c, open_ear, open_b)
     o = p["openness"]
     ey, ep = p["eye_yaw"], p["eye_pitch"]
     # eye_yaw = -(w*Giris*dh + (1-w)*Gblend*blend_h): choose dh and blend_h that each give `ey`
@@ -126,7 +126,7 @@ def run(sc: Scenario, cfg: AppConfig | None = None) -> list[tuple[str, DriverSta
     out: list[tuple[str, DriverState]] = []
     state: DriverState | None = None
     for t, p in sc.script.frames():
-        feats = FrameFeatures(t, 1280, 720, 120.0, synth_face(p, cfg), 1 if p["face"] >= 0.5 else 0)
+        feats = FrameFeatures(120.0, synth_face(p, cfg), 1 if p["face"] >= 0.5 else 0)
         state = mon.process_features(feats, t, latency_ms=12.0).state
         while pending and pending[0][1](state):
             out.append((pending.pop(0)[0], state))

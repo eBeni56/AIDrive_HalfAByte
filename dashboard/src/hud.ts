@@ -5,16 +5,17 @@
 // stays for at least HOLD_MS (even if its problem is already over), so the display never flickers.
 import { useEffect, useState } from "react";
 import { STALE_MS } from "./config";
+import { seconds } from "./format";
+import { REGIONS, type Arrow } from "./regions";
 import type { AttentionEvent, DriverState } from "./types";
 
 const HOLD_MS = 3000; // a message stays at least this long
 const NO_FACE_MS = 1000; // the camera sees no face this long -> "The camera can't see you"
 
-export type Level = "ok" | "info" | "warn" | "danger";
+type Level = "ok" | "info" | "warn" | "danger";
 export type IconName = "alarm" | "obstacle" | "phone" | "eye" | "face" | "camera" | "check";
-export type Arrow = "left" | "right" | "ahead" | "behind" | "behind-left" | "behind-right";
 
-export interface Issue {
+interface Issue {
   key: string; // the same problem keeps its key while it lasts (its detail may change)
   priority: number;
   level: Level;
@@ -58,24 +59,10 @@ export const hudInput = {
 };
 
 // ------------------------------------------------------------------ what is wrong now
-const WHERE: Record<string, { title: string; place: string; arrow: Arrow }> = {
-  front_left: { title: "Watch ahead left", place: "ahead on the left", arrow: "left" },
-  front_center: { title: "Obstacle ahead", place: "right in front of you", arrow: "ahead" },
-  front_right: { title: "Watch ahead right", place: "ahead on the right", arrow: "right" },
-  side_left: { title: "Look left", place: "in your left blind spot", arrow: "left" },
-  side_right: { title: "Look right", place: "in your right blind spot", arrow: "right" },
-  mirror_left: { title: "Check the left mirror", place: "behind you on the left", arrow: "behind-left" },
-  mirror_center: { title: "Check the rear-view mirror", place: "right behind you", arrow: "behind" },
-  mirror_right: { title: "Check the right mirror", place: "behind you on the right", arrow: "behind-right" },
-};
-
 const A: Record<string, string> = { car: "A car", truck: "A truck", bicycle: "A bicycle", motorcycle: "A motorcycle", pedestrian: "A pedestrian" };
 
-function secs(s: number): string {
-  return `${Math.max(0, s).toFixed(0)} s`;
-}
-
-export function activeIssues(now: number): Issue[] {
+/** Everything wrong at `now`, the most important first. Reads the input, changes nothing. */
+function activeIssues(now: number): Issue[] {
   const out: Issue[] = [];
   const fresh = connected && driver !== null && now - driverAt < STALE_MS ? driver : null;
   const det = (type: string) => fresh?.detections.find((d) => d.type === type && d.status !== "ENDED");
@@ -88,11 +75,10 @@ export function activeIssues(now: number): Issue[] {
     });
   }
 
-  // the most urgent object of the simulation the driver has not looked at yet
-  for (const [id, p] of pending) if (now > p.until) pending.delete(id);
+  // the most urgent object of the simulation the driver has not looked at yet (expired ones: forgetExpired)
   const next = [...pending.values()].sort((a, b) => a.until - b.until)[0];
   if (next) {
-    const w = WHERE[next.zone];
+    const w = REGIONS[next.zone];
     out.push({
       key: `obstacle-${next.zone}-${next.type}`, priority: 90, level: "danger", icon: "obstacle",
       title: w?.title ?? "Look around", detail: `${A[next.type] ?? "Something"} is ${w?.place ?? next.zone}`, arrow: w?.arrow,
@@ -103,7 +89,7 @@ export function activeIssues(now: number): Issue[] {
   if (phone) {
     out.push({
       key: "phone", priority: 80, level: "danger", icon: "phone",
-      title: "Put down your phone", detail: `Phone in your hand for ${secs(phone.duration_s)}`,
+      title: "Put down your phone", detail: `Phone in your hand for ${seconds(Math.max(0, phone.duration_s), 0)}`,
     });
   }
 
@@ -141,7 +127,13 @@ const ALL_GOOD: Issue = { key: "ok", priority: 0, level: "ok", icon: "check", ti
 let shown: Issue = ALL_GOOD;
 let shownAt = 0;
 
+/** Objects whose look window (+0.5 s) is over: not shown any more (the server sends "missed"). */
+function forgetExpired(now: number): void {
+  for (const [id, p] of pending) if (now > p.until) pending.delete(id);
+}
+
 export function pick(now: number): Issue {
+  forgetExpired(now);
   const list = activeIssues(now);
   const top = list[0] ?? ALL_GOOD;
   const same = list.find((i) => i.key === shown.key);

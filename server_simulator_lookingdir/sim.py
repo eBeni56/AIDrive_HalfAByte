@@ -23,9 +23,9 @@ class SimObject:
 
 class World:
     """What the simulator last reported."""
-    running = False
-    timestamp = None   # timestamp of the latest message
-    objects = {}       # object_id -> SimObject: the objects visible right now
+
+    def __init__(self):
+        self.objects = {}   # object_id -> SimObject: the objects on the map right now
 
 
 world = World()
@@ -33,7 +33,7 @@ world = World()
 
 def _number(d, key):
     v = d.get(key)
-    if isinstance(v, bool) or not isinstance(v, (int, float)):
+    if isinstance(v, bool) or not isinstance(v, int | float):
         raise ValueError(f"{key!r} must be a number, got {v!r}")
     return v
 
@@ -59,10 +59,10 @@ def handle(msg):
     """Handle one simulator message (already a dict) and update `world`.
     Raises ValueError if it is malformed; a malformed message changes nothing."""
     event = msg.get("event")
-    ts = _number(msg, "timestamp")
+    _number(msg, "timestamp")   # required in every message (the server itself uses its own clock)
 
     if event == "simulation_started":
-        world.running, world.timestamp, world.objects = True, ts, {}
+        world.objects = {}
         log.info("simulation started")
 
     elif event == "simulation_tick":
@@ -79,11 +79,11 @@ def handle(msg):
             log.info("%s (%s) visible at x_px=%d y_px=%d", oid, o.type, o.x_px, o.y_px)
         for oid in world.objects.keys() - objects.keys():
             log.info("%s no longer visible", oid)
-        world.running, world.timestamp, world.objects = True, ts, objects
+        world.objects = objects
         log.debug("tick: %s", list(objects.values()))
 
     elif event == "simulation_ended":
-        world.running, world.timestamp, world.objects = False, ts, {}
+        world.objects = {}
         log.info("simulation ended")
 
     else:

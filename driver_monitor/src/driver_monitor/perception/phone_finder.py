@@ -17,6 +17,7 @@ import numpy as np
 import numpy.typing as npt
 
 from driver_monitor.config import PhoneConfig
+from driver_monitor.perception.mediapipe_tasks import Timestamps, model_file
 
 PHONE_CATEGORY = "cell phone"
 
@@ -32,19 +33,13 @@ class PhoneSighting:
 
 class PhoneFinder:
     def __init__(self, cfg: PhoneConfig, base_dir: Path | None = None) -> None:
-        model = Path(cfg.model_path)
-        if not model.is_absolute() and base_dir is not None:
-            model = base_dir / model
-        if not model.exists():
-            raise FileNotFoundError(
-                f"Object detector model not found at {model}. Run: uv run python tools/download_model.py"
-            )
+        model = model_file(cfg.model_path, base_dir, "Object detector")
         self.cfg = cfg
         self._lock = threading.Lock()
         self._latest: PhoneSighting | None = None
         self._analysed_t: float | None = None  # time of the newest analysed frame (phone or not)
         self._times: dict[int, float] = {}  # timestamp_ms -> pipeline time, for frames in flight
-        self._last_ts_ms = -1
+        self._timestamps = Timestamps()
         self._next_t: float | None = None
         vision = mp.tasks.vision
         options = vision.ObjectDetectorOptions(
@@ -62,8 +57,7 @@ class PhoneFinder:
         if self._next_t is not None and t < self._next_t - 1e-3:
             return
         self._next_t = t + 1.0 / max(self.cfg.detect_hz, 0.1)
-        ts_ms = max(round(t * 1000.0), self._last_ts_ms + 1)  # must strictly increase
-        self._last_ts_ms = ts_ms
+        ts_ms = self._timestamps.ms(t)
         with self._lock:
             self._times[ts_ms] = t
             if len(self._times) > 50:  # results of skipped frames never come back
@@ -72,7 +66,7 @@ class PhoneFinder:
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         self._detector.detect_async(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), ts_ms)
 
-    def _on_result(self, result: object, image: object, ts_ms: int) -> None:  # MediaPipe's thread
+    def _on_result(self, result: object, _image: object, ts_ms: int) -> None:  # MediaPipe's thread
         best: PhoneSighting | None = None
         with self._lock:
             t = self._times.pop(ts_ms, None)

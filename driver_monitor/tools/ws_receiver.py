@@ -5,7 +5,7 @@ Usage (in a second terminal, before or after starting the monitor):
   uv run python tools/ws_receiver.py --port 9000
   uv run python tools/ws_receiver.py --full          # print every complete JSON message
 
-Without --full it prints one summary line per second: messages/s, time, drowsiness level, active detections.
+Without --full it prints one summary line per second: messages/s, time, eyes, gaze zone, active detections.
 """
 
 from __future__ import annotations
@@ -39,11 +39,10 @@ def main() -> None:
                 continue
             now = time.monotonic()
             if now - last >= 1.0:
-                d = msg.get("drowsiness", {})
                 active = ", ".join(msg.get("summary", {}).get("active", [])) or "-"
                 print(
                     f"{n / (now - last):5.1f} msg/s | t {msg.get('t')} | eyes {msg.get('eyes', {}).get('state')}"
-                    f" | gaze {msg.get('gaze', {}).get('zone')} | {d.get('level')} | active: {active}"
+                    f" | gaze {msg.get('gaze', {}).get('zone')} | active: {active}"
                 )
                 n, last = 0, now
         print("client disconnected")
