@@ -221,3 +221,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local logs and databases
+drive_logs.db
+*.log
+
+# Models folder
+models/
