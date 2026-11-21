@@ -1,4 +1,5 @@
-# Start everything:  docker compose up --build
+# Start:  docker compose up --build        (server + simulator; the driver monitor runs on the host with the webcam)
+# Video replay (needs driver_monitor/recordings/): docker compose --profile replay up --build
 #   simulator       http://localhost:8080 (SIMULATOR_PORT)   browser page; its WebSocket goes to /ws
 #   server          ws://localhost:8765 (SERVER_PORT)        receives the simulator and the driver monitor
 #   model-download  one-shot: downloads the MediaPipe model into driver_monitor/models/ if missing
@@ -30,6 +31,7 @@ services:
   model-download:
     build: ./driver_monitor
     image: aidrive-driver-monitor
+    profiles: ["replay"]
     command: ["python", "tools/download_model.py"]
     volumes:
       - ./driver_monitor/models:/app/models
@@ -38,6 +40,7 @@ services:
   driver-monitor:
     build: ./driver_monitor
     image: aidrive-driver-monitor
+    profiles: ["replay"]
     depends_on:
       model-download:
         condition: service_completed_successfully

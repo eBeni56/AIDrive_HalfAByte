@@ -13,8 +13,11 @@ docker compose up --build
 |---|---|---|
 | `server` | `server_simulator_lookingdir/`: receives the simulator and the driver monitor, sends `gaze_update` (the driver monitor's gaze zone as a simulator region, 10 Hz) to the simulator | `ws://localhost:8765` |
 | `simulator` | `simulator/` served by nginx; its WebSocket goes to `/ws`, which nginx passes to `server` | <http://localhost:8080> |
-| `model-download` | One-shot: downloads the MediaPipe model into `driver_monitor/models/` if it is missing, then exits | - |
-| `driver-monitor` | Starts after `model-download` finished successfully. Replays a recorded video in real time and streams `driver_state` to `server`; exits at the end of the video | - |
+| `model-download` | Only with `--profile replay`: downloads the MediaPipe model into `driver_monitor/models/` if missing | - |
+| `driver-monitor` | Only with `--profile replay`: replays a recorded video from `driver_monitor/recordings/` (not in git) and streams `driver_state` to `server` | - |
+
+`docker compose up --build` starts only `server` and `simulator`; for the live gaze run the driver monitor on the
+host with the webcam (see below). To replay a video instead: `docker compose --profile replay up --build`.
 
 Open <http://localhost:8080> in the browser, place objects and press **Start simulation**. The `server` log
 shows the simulator messages and every change of the `gaze_update` it sends; the `driver-monitor` log shows its
