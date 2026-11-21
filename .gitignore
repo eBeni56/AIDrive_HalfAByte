@@ -224,3 +224,9 @@ __marimo__/
 
 # Claude Code local settings
 .claude/
+
+# driver_monitor: downloaded model weights and JSON Lines recordings
+driver_monitor/models/*.task
+driver_monitor/models/*.part
+driver_monitor/recordings/
+*.jsonl
