@@ -51,12 +51,18 @@ project needs and nothing else: **where the driver looks** (`gaze.zone`), **whet
 |---|---|---|
 | `ROAD` | `front_left` / `front_center` / `front_right` (split by `gaze.yaw_deg`) | fine |
 | `LEFT_MIRROR`, `REAR_MIRROR`, `RIGHT_MIRROR` | `mirror_left`, `mirror_center`, `mirror_right` | fine |
-| `LEFT_SIDE`, `RIGHT_SIDE` | `side_left`, `side_right` (side windows / blind spots) | fine |
+| `LEFT_SIDE`, `RIGHT_SIDE` | `side_left`, `side_right` (head turned far: side window / blind spot) | fine |
 | `UP`, `DOWN` | `away` | none of the 8 regions → `DISTRACTED` after 1 s |
 | `UNKNOWN` | `away` (the server reports `no_face` / `eyes_closed`) | no face, or the eyes closed longer than a blink |
 
-The mirror boxes are in `gaze_zones` in the config (defaults: the simulator screen layout). The road box is set
-by `gaze.on_road_*`.
+The mirror boxes are in `gaze_zones` in the config. The defaults are for the simulator in full screen. From the
+middle outwards, per side:
+* the road (|yaw| ≤ 20°): `ROAD` (the server splits it into front-left / centre / front-right);
+* the side mirror: yaw 20°…55° at any height (lower screen corner up to eye level);
+* the side window: beyond 55° (`LEFT_SIDE` / `RIGHT_SIDE`);
+* the rear-view mirror is the top centre; looking down in the middle is `DOWN`.
+
+The road box is set by `gaze.on_road_*`.
 
 ## Detections
 

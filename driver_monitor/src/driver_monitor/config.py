@@ -144,12 +144,14 @@ class GazeZonesConfig(_Section):
     """Where the mirrors are. Gaze angles in deg: yaw - left / + right, pitch - down / + up, relative to the
     straight-ahead look recorded during calibration. A mirror box is checked before the road box.
 
-    Defaults: a driving SIMULATOR (driver ~60-80 cm from the screen, rear-view mirror inset at the top
-    centre of the screen, side mirrors in the lower left / right corners). Adjust to the actual screen
-    layout; the overlay shows the live gaze angles and zone. For a real left-hand-drive car something like:
-      rear_mirror  yaw 18..45   pitch 3..30
-      left_mirror  yaw -70..-30 pitch -25..5
-      right_mirror yaw 45..85   pitch -25..5
+    Defaults: a driving SIMULATOR in full screen. Looking from the middle outwards, per side:
+      the road (|yaw| <= gaze.on_road_yaw_deg = 20 deg)   -> front_left / front_right, unchanged
+      the SIDE MIRROR, yaw 20..55 deg, at any height      -> from the screen's lower corners up to eye level
+      the side window, beyond 55 deg                      -> LEFT_SIDE / RIGHT_SIDE (a shoulder check)
+    The side mirror is a wide band, not a small box: a look at the screen edge is mostly done with the eyes
+    and the measured angles vary a lot (eyeLookDown alone is -30..-50 deg), so it must not depend on how low
+    or how far out exactly the driver looks. The rear-view mirror is the top centre.
+    Adjust to the actual screen layout; the overlay shows the live gaze angles and zone.
     The road box itself is gaze.on_road_*; anything below it is DOWN, beside it LEFT_SIDE / RIGHT_SIDE,
     above it UP.
     """
@@ -161,15 +163,15 @@ class GazeZonesConfig(_Section):
     )
     left_mirror: ZoneBox = Field(
         default_factory=lambda: ZoneBox(
-            yaw_min_deg=-38.0, yaw_max_deg=-12.0, pitch_min_deg=-25.0, pitch_max_deg=-3.0
+            yaw_min_deg=-55.0, yaw_max_deg=-20.0, pitch_min_deg=-90.0, pitch_max_deg=15.0
         )
     )
     right_mirror: ZoneBox = Field(
         default_factory=lambda: ZoneBox(
-            yaw_min_deg=12.0, yaw_max_deg=38.0, pitch_min_deg=-25.0, pitch_max_deg=-3.0
+            yaw_min_deg=20.0, yaw_max_deg=55.0, pitch_min_deg=-90.0, pitch_max_deg=15.0
         )
     )
-    hysteresis_deg: float = 2.0  # a zone is kept until the gaze is this far outside its box
+    hysteresis_deg: float = 3.0  # a zone is kept until the gaze is this far outside its box
 
 
 class DistractionConfig(_Section):

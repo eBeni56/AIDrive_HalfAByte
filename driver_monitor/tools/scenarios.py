@@ -169,9 +169,15 @@ SCENARIOS: list[Scenario] = [
     ),
     Scenario(
         "mirror_left",
-        "Left-mirror check in the simulator (zone LEFT_MIRROR, no detection)",
-        Script().hold(1.0).ramp(0.15, yaw=-14.0, eye_yaw=-8.0, pitch=-6.0, eye_pitch=-6.0).hold(1.5),
+        "Left-mirror check in the simulator, lower left corner (zone LEFT_MIRROR, no detection)",
+        Script().hold(1.0).ramp(0.15, yaw=-16.0, eye_yaw=-12.0, pitch=-6.0, eye_pitch=-6.0).hold(1.5),
         [("looking at the mirror", at(2.2))],
+    ),
+    Scenario(
+        "mirror_corner_right",
+        "Right mirror: head a little right and down, the eyes deep into the lower right corner (RIGHT_MIRROR)",
+        Script().hold(1.0).ramp(0.15, yaw=14.0, eye_yaw=16.0, pitch=-8.0, eye_pitch=-25.0).hold(1.5),
+        [("looking at the corner", at(2.2))],
     ),
     Scenario(
         "rear_mirror",
@@ -180,16 +186,22 @@ SCENARIOS: list[Scenario] = [
         [("in the mirror", at(2.2))],
     ),
     Scenario(
+        "mirror_left_high",
+        "Left mirror, higher up: at eye level, yaw -35 deg (zone LEFT_MIRROR)",
+        Script().hold(1.0).ramp(0.2, yaw=-28.0, eye_yaw=-7.0).hold(1.5),
+        [("at eye level", at(2.4))],
+    ),
+    Scenario(
         "look_side",
-        "Looking out of the left side window for 3 s (zone LEFT_SIDE, no detection)",
-        Script().hold(1.0).ramp(0.2, yaw=-30.0, eye_yaw=-10.0).hold(3.0),
+        "Looking out of the left side window for 3 s: head turned far (zone LEFT_SIDE, no detection)",
+        Script().hold(1.0).ramp(0.2, yaw=-62.0).hold(3.0),
         [("3 s to the side", at(4.1))],
     ),
     Scenario(
         "shoulder_right",
-        "Head turned 58 deg right: eyes not measurable, the gaze uses the head alone (RIGHT_SIDE)",
-        Script().hold(1.0).ramp(0.3, yaw=58.0).hold(1.2),
-        [("head at 58 deg", at(2.4))],
+        "Head turned 65 deg right: eyes not measurable, the gaze uses the head alone (RIGHT_SIDE)",
+        Script().hold(1.0).ramp(0.3, yaw=65.0).hold(1.2),
+        [("head at 65 deg", at(2.4))],
     ),
     Scenario(
         "face_lost",
