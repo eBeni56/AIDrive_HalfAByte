@@ -431,6 +431,18 @@ class WebSocketConfig(_Section):
     queue_size: int = 30  # messages buffered while sending is slower than the camera (oldest dropped)
 
 
+class CameraStreamConfig(_Section):
+    """Serves the preview image (with the overlay) as an MJPEG stream for the dashboard:
+    http://<host>:<port>/stream.mjpg. Frames are drawn and encoded only while someone watches."""
+
+    enabled: bool = True
+    host: str = "localhost"  # 0.0.0.0 in Docker
+    port: int = 8090
+    fps: float = 15.0  # at most this many frames per second to the viewers
+    jpeg_quality: int = 70
+    max_width: int = 960  # larger frames are scaled down (0 = keep the camera size)
+
+
 class AppConfig(_Section):
     camera: CameraConfig = Field(default_factory=CameraConfig)
     landmarker: LandmarkerConfig = Field(default_factory=LandmarkerConfig)
@@ -454,6 +466,7 @@ class AppConfig(_Section):
     quality: QualityConfig = Field(default_factory=QualityConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
+    camera_stream: CameraStreamConfig = Field(default_factory=CameraStreamConfig)
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:

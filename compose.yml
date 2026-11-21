@@ -1,7 +1,9 @@
 # Start:  docker compose up --build        (server + simulator; the driver monitor runs on the host with the webcam)
 # Video replay (needs driver_monitor/recordings/): docker compose --profile replay up --build
 #   simulator       http://localhost:8080 (SIMULATOR_PORT)   browser page; its WebSocket goes to /ws
-#   server          ws://localhost:8765 (SERVER_PORT)        receives the simulator and the driver monitor
+#   dashboard       http://localhost:8081 (DASHBOARD_PORT)   camera + chat + detections; WebSocket to /ws,
+#                                                            camera image from the driver monitor (:8090)
+#   server          ws://localhost:8765 (SERVER_PORT)        receives the simulator, the driver monitor, the dashboard
 #   model-download  one-shot: downloads the MediaPipe model into driver_monitor/models/ if missing
 #   driver-monitor  replays driver_monitor/recordings/$DM_VIDEO and streams driver_state to the server
 # Ports and the video are set in .env.
@@ -16,6 +18,7 @@ services:
       PORT: 8765
       LOG_LEVEL: ${SERVER_LOG_LEVEL:-INFO}
       GAZE_HZ: ${GAZE_HZ:-10}
+      DASHBOARD_HZ: ${DASHBOARD_HZ:-10}
       CAMERA_TIMEOUT_S: ${CAMERA_TIMEOUT_S:-1.0}
       FRONT_SPLIT_DEG: ${FRONT_SPLIT_DEG:-7}
     ports:
@@ -27,6 +30,13 @@ services:
       - server
     ports:
       - "${SIMULATOR_PORT:-8080}:80"
+
+  dashboard:
+    build: ./dashboard
+    depends_on:
+      - server
+    ports:
+      - "${DASHBOARD_PORT:-8081}:80"
 
   model-download:
     build: ./driver_monitor
@@ -56,6 +66,8 @@ services:
       - config/driver_monitor.docker.yaml
       - --video
       - recordings/${DM_VIDEO:-recording-10.mp4}
+    ports:
+      - "8090:8090"   # camera stream for the dashboard (the browser reads it at localhost:8090)
     volumes:
       - ./driver_monitor/models:/app/models:ro
       - ./driver_monitor/recordings:/app/recordings:ro

@@ -9,3 +9,10 @@ websocket:
   url: "ws://localhost:8765"
   max_rate_hz: 0        # 0 = every frame (~30/s); e.g. 10 = at most 10 messages per second
   reconnect_s: 2.0      # the server may start later or restart: the monitor keeps reconnecting
+
+camera_stream:
+  # The camera preview (with the overlay) for the dashboard: http://localhost:8090/stream.mjpg
+  enabled: true
+  host: "localhost"
+  port: 8090
+  fps: 15

@@ -19,6 +19,9 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     )
     p.add_argument("--no-ws", action="store_true", help="do not stream the JSON to the WebSocket")
     p.add_argument(
+        "--no-stream", action="store_true", help="do not serve the camera preview as MJPEG (for the dashboard)"
+    )
+    p.add_argument(
         "--camera", type=int, help="camera index (default 1 = external USB camera, falls back to 0)"
     )
     p.add_argument(
@@ -57,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         cfg.websocket.enabled = True
     if args.no_ws:
         cfg.websocket.enabled = False
+    if args.no_stream:
+        cfg.camera_stream.enabled = False
     if args.camera is not None:
         cfg.camera.index = args.camera
         cfg.camera.fallback_indices = []  # an explicit choice must not silently open another camera

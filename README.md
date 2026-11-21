@@ -6,13 +6,19 @@ Porsche AI Drive Hackathon -- Cluj-Napoca, November 2026 -- Team: Half A Byte
 Needs Docker Desktop. From this folder:
 
 ```
-docker compose up --build
+start.bat            # Windows (macOS / Linux: ./start.sh)
+start.bat --build    # after a code change: rebuild the images first
 ```
+
+This is `docker compose up` (logs in the terminal, Ctrl+C stops everything) plus: as soon as the dashboard and
+the simulator answer, it opens them in two browser windows (Chrome or Edge with `--new-window`; another default
+browser opens them as tabs). Plain `docker compose up --build` works too, without opening the browser.
 
 | Service | What it does | Address on this PC |
 |---|---|---|
 | `server` | `server_simulator_lookingdir/`: receives the simulator and the driver monitor, sends `gaze_update` (the driver monitor's gaze zone as a simulator region, 10 Hz) to the simulator | `ws://localhost:8765` |
 | `simulator` | `simulator/` served by nginx; its WebSocket goes to `/ws`, which nginx passes to `server` | <http://localhost:8080> |
+| `dashboard` | `dashboard/` (React) served by nginx: the driver camera with its markings, the assistant chat and the detections; WebSocket via `/ws`, camera image from the driver monitor at `localhost:8090` | <http://localhost:8081> |
 | `model-download` | Only with `--profile replay`: downloads the MediaPipe model into `driver_monitor/models/` if missing | - |
 | `driver-monitor` | Only with `--profile replay`: replays a recorded video from `driver_monitor/recordings/` (not in git) and streams `driver_state` to `server` | - |
 
@@ -41,10 +47,14 @@ the server's published port (its default address in `driver_monitor/config/drive
 `ws://localhost:8765`, which matches `SERVER_PORT`):
 
 ```
-docker compose up --build server simulator
+docker compose up --build server simulator dashboard
 cd driver_monitor
 uv run python -m driver_monitor
 ```
+
+The dashboard (<http://localhost:8081>) then shows the camera with the driver monitor's markings (streamed from
+`localhost:8090`), the detections and the assistant chat. Without Docker: `cd dashboard`, `npm install`,
+`npm run dev` (<http://localhost:5173>), see [dashboard/README.md](dashboard/README.md).
 
 Look straight ahead until calibration is done (the simulator badge says "Camera calibrating" meanwhile), then the
 highlight follows your eyes. If a mirror highlights in the wrong place, look at it and read the gaze angles in the

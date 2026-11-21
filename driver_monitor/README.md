@@ -29,6 +29,10 @@ uv run python tools/ws_receiver.py          # listens on ws://localhost:8765, pr
 uv run python tools/ws_receiver.py --full   # prints every JSON message
 ```
 
+It also serves the preview window's image (with all the markings) as an MJPEG stream for the dashboard, at
+`http://localhost:8090/stream.mjpg` (`camera_stream` in the config, `--no-stream` turns it off). A frame is only
+encoded while a page is watching, so it costs nothing otherwise.
+
 Useful options:
 
 ```powershell

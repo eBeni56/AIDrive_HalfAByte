@@ -1,12 +1,13 @@
 # Simulator server
 
-WebSocket server with two clients on one port: the driving simulator and the driver camera client.
-It reads what both send and tells the simulator which region the driver is looking at: the camera
-client's gaze zone, translated to the simulator's regions, 10 times per second.
+WebSocket server for all clients on one port: the driving simulator, the driver camera client and the
+dashboard (plus, later, the voice assistant). It tells the simulator which region the driver is looking at:
+the camera client's gaze zone, translated to the simulator's regions, 10 times per second. The dashboard
+gets the same, plus the latest `driver_state` and the chat messages.
 
 Files: `sim.py` parses the simulator's messages, `camera.py` parses the camera client's messages
 (and maps its gaze zone to a region), `server.py` routes each message to one of them and sends the
-answer. Tests: `python -m unittest -v`. A malformed message is logged
+answer. Tests: `python -m unittest -v` (`test_gaze.py`, `test_dashboard.py`). A malformed message is logged
 as a warning and ignored; the connection stays open.
 
 ## Input 1: simulator
@@ -75,9 +76,30 @@ Where the mirrors and the road are (in gaze angles) is set in the camera client,
 `gaze.on_road_*` in `driver_monitor/config/driver_monitor.yaml`; its window overlay shows the live
 angles and zone. The simulator shows "No gaze data" by itself when no `gaze_update` arrives for 1.5 s.
 
+## Dashboard and chat
+
+The dashboard (`dashboard/`) sends this once after connecting:
+
+```json
+{"type": "hello", "role": "dashboard"}
+```
+
+From then on it gets every `gaze_update` (as above), the latest `driver_state` exactly as the camera client
+sent it, `DASHBOARD_HZ` (default 10) times per second and only when a new one arrived, and every
+`chat_message`. Only dashboards get `driver_state` and `chat_message`; the simulator never does.
+
+The voice assistant (any client) puts a line into the dashboard's chat with:
+
+```json
+{"type": "chat_message", "role": "assistant", "text": "You seem tired. Shall I find a rest stop?"}
+```
+
+`role` is `user` (what the driver said) or `assistant`; anything else is logged as a warning and dropped.
+The server keeps no history. A chat client gets no `gaze_update` once it has sent its first `chat_message`.
+
 ## Console output
 
-Every simulator message, and every `gaze_update` whose status or region changed, is printed exactly
+Every simulator message and `chat_message`, and every `gaze_update` whose status or region changed, is printed exactly
 as received/sent, one JSON per line, so the two directions can be read side by side:
 
 ```
@@ -109,6 +131,7 @@ on `0.0.0.0:8765`; the host port is `SERVER_PORT` in the root `.env`.
 | `PORT` | `8765` | Port. The simulator's `WS_URL` must match. |
 | `LOG_LEVEL` | `INFO` | `DEBUG` also prints every `gaze_update` and every camera message. |
 | `GAZE_HZ` | `10` | `gaze_update` messages per second. |
+| `DASHBOARD_HZ` | `10` | `driver_state` messages per second to the dashboard (the camera sends ~30). |
 | `CAMERA_TIMEOUT_S` | `1.0` | No `driver_state` for this long: `no_gaze_client`. |
 | `FRONT_SPLIT_DEG` | `7` | Looking at the road, \|yaw\| beyond this: `front_left` / `front_right`. |
 
