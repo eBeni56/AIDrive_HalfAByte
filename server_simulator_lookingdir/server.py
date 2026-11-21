@@ -1,20 +1,37 @@
-"""WebSocket server: connects the simulator and the driver camera client, and tells the
-simulator where the driver is looking.
+"""WebSocket server: connects the simulator, the driver camera client, the dashboard and the AI copilot, tells
+the simulator where the driver is looking, and tells the copilot what to say.
 
-  sim.py     parses the simulator's messages      (messages with an "event" field)
-  camera.py  parses the camera client's messages  ("type": "driver_state")
-  server.py  routes each message to one of them and sends gaze_update to the simulator
+  sim.py        parses the simulator's messages      (messages with an "event" field)
+  camera.py     parses the camera client's messages  ("type": "driver_state")
+  attention.py  did the driver look at each simulator object in time? (attention_event / _summary)
+  reactions.py  when the copilot speaks, and what (copilot_alert)
+  server.py     routes each message to one of them and sends:
+                  gaze_update     to the simulator and the dashboard (GAZE_HZ)
+                  driver_state    to the dashboard (DASHBOARD_HZ; only the three detections, camera.py)
+                  simulation_started / _ended, attention_event / _summary, chat_message   to the dashboard
+                  copilot_alert   to the copilot
+
+The server handles exactly three things about the driver: where they look (gaze region + attention.py:
+did they look at the car / bike / person around them), eyes closed (EYES_CLOSED), and not paying attention
+(DISTRACTED: looking up or down; PHONE_USE: phone in the hand). Nothing else.
 
 The gaze region comes from the camera client's gaze.zone (camera.region()); without a camera client
 (or when it has sent nothing for CAMERA_TIMEOUT_S) the status is "no_gaze_client". Every gaze_update also
-carries "driver": the driver's condition from the camera client (tired, not paying attention, alerts,
-drowsiness level and history; camera.driver_block()), or null without fresh camera data.
+carries "driver": eyes closed / not paying attention / the active alerts (camera.driver_block()), or null
+without fresh camera data.
+
+Clients say who they are with their first message: the camera sends driver_state, the simulator sends
+events, the dashboard and the copilot send {"type": "hello", "role": "dashboard" | "copilot"}. The copilot
+(and any voice assistant) may send chat_message {"type": "chat_message", "role": "user" | "assistant",
+"text": ...}; it is passed on to the dashboards.
 
 Environment variables: HOST (default localhost; 0.0.0.0 in Docker), PORT (default 8765),
-GAZE_HZ (gaze_update rate, default 30), CAMERA_TIMEOUT_S (default 1.0), FRONT_SPLIT_DEG (default 7),
-RECENT_ALERT_S (default 5, see camera.py), LOG_LEVEL (INFO prints every simulator message, every alert
-that starts / changes / ends, and every gaze_update whose status, region or alerts changed; DEBUG also
-prints every gaze_update and every camera message).
+GAZE_HZ (gaze_update rate, default 30), DASHBOARD_HZ (driver_state rate to the dashboard, default 10),
+CAMERA_TIMEOUT_S (default 1.0), FRONT_SPLIT_DEG (default 7), RECENT_ALERT_S (default 5, see camera.py),
+EYES_CLOSED_VOICE_S / EYES_CLOSED_REPEAT_S / ATTENTION_REPEAT_S (see reactions.py),
+LOG_LEVEL (INFO prints every simulator message, every alert that starts / changes / ends, everything the
+copilot is told to say, and every gaze_update whose status, region or alerts changed; DEBUG also prints
+every gaze_update and every camera message).
 """
 import asyncio
 import json
@@ -25,53 +42,103 @@ import time
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
 
+import attention
 import camera
+import reactions
 import sim
 
 HOST = os.environ.get("HOST", "localhost")
 PORT = int(os.environ.get("PORT", "8765"))
 GAZE_HZ = float(os.environ.get("GAZE_HZ", "30"))                    # gaze_update messages per second
+DASHBOARD_HZ = float(os.environ.get("DASHBOARD_HZ", "10"))          # driver_state to the dashboard per second
 CAMERA_TIMEOUT_S = float(os.environ.get("CAMERA_TIMEOUT_S", "1.0"))  # older camera data = no camera
 FRONT_SPLIT_DEG = float(os.environ.get("FRONT_SPLIT_DEG", "7"))      # |yaw| beyond this: front_left/right
+ATTENTION_HZ = 20                                                    # how often look deadlines are checked
+REACTIONS_HZ = 10                                                    # how often the copilot lines are decided
 
 log = logging.getLogger("server")
-clients = {}   # ws -> "simulator" | "camera" | None (not known yet)
+clients = {}   # ws -> "simulator" | "camera" | "dashboard" | "copilot" | "chat" | None (not known yet)
+NO_GAZE_UPDATE = {"camera", "chat", "copilot"}   # roles that don't get gaze_update
+HELLO_ROLES = {"dashboard", "copilot"}
+latest_driver_state = None            # the last driver_state text, as received (cleaned for the dashboard)
+watch = attention.Attention()         # the attention state of the current simulation run
+voice = reactions.Reactions()         # what the copilot has said
 
 
 def route(raw):
-    """Both clients use the same port, so look at each message to see who sent it.
-    Returns "simulator", "camera" or None (message ignored)."""
+    """All clients use the same port, so look at each message to see who sent it.
+    Returns (role, forward): role is "simulator", "camera", "dashboard", "copilot", "chat" or None (message
+    ignored); forward is a list of texts to send to every dashboard now."""
+    global latest_driver_state
     try:
         msg = json.loads(raw)
     except (ValueError, TypeError):
         log.warning("message ignored: not valid JSON text")
-        return None
+        return None, []
     if not isinstance(msg, dict):
         log.warning("message ignored: expected a JSON object")
-        return None
+        return None, []
 
-    if msg.get("type") == "driver_state":
+    kind = msg.get("type")
+    if kind == "driver_state":
         camera.handle(msg)
-        return "camera"
+        latest_driver_state = raw
+        return "camera", []
+    if kind == "hello" and msg.get("role") in HELLO_ROLES:
+        return msg["role"], []
+    if kind == "chat_message":   # from the voice assistant (speech to text / AI answer): to the dashboard
+        if msg.get("role") not in ("user", "assistant") or not isinstance(msg.get("text"), str):
+            log.warning("message ignored: chat_message needs role user/assistant and a text")
+            return "chat", []
+        return "chat", [raw]
     if "event" in msg:
         try:
             sim.handle(msg)
         except ValueError as e:
             log.warning("message ignored: %s", e)
-        return "simulator"
-    log.warning("message ignored: neither a driver_state nor a simulator event")
-    return None
+            return "simulator", []
+        return "simulator", simulator_event(msg["event"], raw)
+    log.warning("message ignored: not a driver_state, hello, chat_message or simulator event")
+    return None, []
+
+
+def current_region():
+    """The gaze region the attention check uses: None unless the camera status is "ok"."""
+    status, region = decide_gaze()
+    return region if status == "ok" else None
+
+
+def attention_out(msgs, now):
+    """Attention messages -> the texts for the dashboard; the "missed" ones are also queued for the copilot."""
+    voice.on_attention(now, msgs)
+    return [json.dumps(m) for m in msgs]
+
+
+def simulator_event(event, raw, now=None):
+    """Feed a (valid) simulator message to the attention check. Returns the texts for the dashboard:
+    simulation_started / _ended as received, plus the attention messages (ticks themselves are not sent)."""
+    now = time.monotonic() if now is None else now
+    if event == "simulation_started":
+        return [raw] + attention_out(watch.start(now), now)
+    if event == "simulation_tick":
+        objects = list(sim.world.objects.values())
+        return attention_out(watch.on_tick(now, objects, current_region()), now)
+    if event == "simulation_ended":
+        return attention_out(watch.end(now, current_region()), now) + [raw]
+    return []
 
 
 async def handler(ws: ServerConnection):
     clients[ws] = None
     try:
         async for raw in ws:
-            role = route(raw)
-            if role == "simulator":
+            role, forward = route(raw)
+            if role in ("simulator", "chat"):
                 log.info("RECEIVED %s", raw)    # exactly as received, one JSON per line
             elif role == "camera":
                 log.debug("RECEIVED %s", raw)   # ~30 Hz: only with LOG_LEVEL=DEBUG
+            for text in forward:
+                await send_to("dashboard", text)
             if role and clients[ws] is None:
                 clients[ws] = role
                 log.info("%s connected", role)
@@ -113,10 +180,62 @@ def gaze_message(now=None):
     return msg, (status, region, alert_key)
 
 
+def copilot_messages(now=None):
+    """The copilot_alert messages to send now (reactions.py), most urgent first."""
+    now = time.monotonic() if now is None else now
+    return voice.update(now, camera.driver.active if camera_fresh(now) else [])
+
+
+async def send_to(role, text):
+    """Send one text to every client with this role. Returns how many got it."""
+    sent = 0
+    for ws, r in list(clients.items()):
+        if r == role:
+            try:
+                await ws.send(text)
+                sent += 1
+            except Exception:   # a failed send must never break the server
+                pass
+    return sent
+
+
+async def send_dashboard_loop():
+    """Send the latest driver_state DASHBOARD_HZ times per second to the dashboards (the camera sends
+    ~30/s, more than a page needs), cleaned to the three detections. Nothing is sent while no new
+    driver_state arrived."""
+    last = None
+    while True:
+        await asyncio.sleep(1.0 / DASHBOARD_HZ)
+        raw = latest_driver_state
+        if raw is not None and raw is not last:
+            last = raw
+            text = camera.dashboard_state(raw)
+            if text is not None:
+                await send_to("dashboard", text)
+
+
+async def attention_loop():
+    """Check the look deadlines and dwell ATTENTION_HZ times per second (between simulator ticks)."""
+    while True:
+        await asyncio.sleep(1.0 / ATTENTION_HZ)
+        now = time.monotonic()
+        for text in attention_out(watch.update(now, current_region()), now):
+            await send_to("dashboard", text)
+
+
+async def copilot_loop():
+    """Decide REACTIONS_HZ times per second what the copilot should say, and send it to the copilot(s).
+    Without a copilot connected the lines are still logged (reactions.py), so you can see what it would say."""
+    while True:
+        await asyncio.sleep(1.0 / REACTIONS_HZ)
+        for m in copilot_messages():
+            await send_to("copilot", json.dumps(m))
+
+
 async def send_gaze_loop():
-    """Send gaze_update GAZE_HZ times per second to every client that is not the camera. The
-    simulator sends nothing before GO, so it can't be recognised earlier; it gets the message anyway.
-    Only changes are logged at INFO (at 30 Hz every message would flood the console)."""
+    """Send gaze_update GAZE_HZ times per second to every client that is not the camera, a chat source or
+    the copilot. The simulator sends nothing before GO, so it can't be recognised earlier; it gets the
+    message anyway. Only changes are logged at INFO (at 30 Hz every message would flood the console)."""
     last = None
     while True:
         await asyncio.sleep(1.0 / GAZE_HZ)
@@ -124,13 +243,13 @@ async def send_gaze_loop():
         text = json.dumps(msg)
         sent = 0
         for ws, role in list(clients.items()):
-            if role != "camera":
+            if role not in NO_GAZE_UPDATE:
                 try:
                     await ws.send(text)
                     sent += 1
                 except Exception:   # a failed send must never break the server
                     pass
-        if sent:                    # nothing is logged while no simulator is connected
+        if sent:                    # nothing is logged while no simulator / dashboard is connected
             if key != last:
                 log.info("SENT %s", text)
             else:
@@ -142,8 +261,10 @@ async def send_gaze_loop():
 
 async def main():
     async with serve(handler, HOST, PORT):
-        log.info("listening on ws://%s:%d (gaze_update %g Hz)", HOST, PORT, GAZE_HZ)
-        await send_gaze_loop()   # runs until Ctrl+C
+        log.info("listening on ws://%s:%d (gaze_update %g Hz, dashboard %g Hz)", HOST, PORT, GAZE_HZ,
+                 DASHBOARD_HZ)
+        await asyncio.gather(send_gaze_loop(), send_dashboard_loop(), attention_loop(),
+                             copilot_loop())   # run until Ctrl+C
 
 
 if __name__ == "__main__":

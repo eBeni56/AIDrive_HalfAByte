@@ -1,14 +1,27 @@
 # Simulator server
 
-WebSocket server with two clients on one port: the driving simulator and the driver camera client.
-It reads what both send and tells the simulator, 30 times per second, which region the driver is looking at
-(the camera client's gaze zone, translated to the simulator's regions) and what condition the driver is in:
-tired, not paying attention, not visible, with the camera client's alerts, drowsiness level and history.
+WebSocket server for all clients on one port: the driving simulator, the driver camera client
+(`driver_monitor`), the dashboard and the AI copilot (`copilot/ai-server.py`). It tells the simulator,
+30 times per second, which region the driver is looking at; it tells the dashboard what is wrong; it tells
+the copilot what to say.
 
-Files: `sim.py` parses the simulator's messages, `camera.py` parses the camera client's messages
-(maps its gaze zone to a region and keeps its detections), `alerts.py` words the alerts, `server.py`
-routes each message to one of them and sends the answer. Tests: `python -m unittest -v`. A malformed message is logged
-as a warning and ignored; the connection stays open.
+The server handles exactly **three things about the driver**, nothing else:
+
+1. **Where the driver looks** - the gaze region, and for every car / bike / person around the car: did the
+   driver look at it in time (`attention.py`)? Looked in time: nothing happens. Did not look: an alert.
+2. **Not paying attention** - `DISTRACTED` (looking up or down - at none of the road, mirrors and side windows -
+   for 1 s) and `PHONE_USE` (a phone in the hand).
+3. **Eyes closed** - `EYES_CLOSED` (longer than a blink; `DANGER` after 1 s).
+
+Any other detection type the camera client might send (or a `drowsiness` / `mouth` block from an older
+version) is dropped on arrival.
+
+Files: `sim.py` parses the simulator's messages, `camera.py` parses the camera client's messages (maps its
+gaze zone to a region, keeps the three detections), `alerts.py` words the alerts, `attention.py` decides
+whether the driver looked at each simulator object in time, `reactions.py` decides when the copilot speaks
+and what, `server.py` routes each message to one of them and sends the answers. Tests:
+`python -m unittest -v` (`test_gaze.py`, `test_attention.py`, `test_dashboard.py`, `test_reactions.py`).
+A malformed message is logged as a warning and ignored; the connection stays open.
 
 ## Input 1: simulator
 
@@ -45,19 +58,18 @@ For the gaze region (`status` / `region`) these fields are read:
 | `gaze.yaw_deg` | 0 = straight ahead, negative = left, positive = right |
 | `gaze.pitch_deg` | 0 = straight, positive = up, negative = down |
 | `gaze.zone` | `ROAD`, `REAR_MIRROR`, `LEFT_MIRROR`, `RIGHT_MIRROR`, `LEFT_SIDE`, `RIGHT_SIDE`, `UP`, `DOWN`, `UNKNOWN` |
-| `eyes.state` | `OPEN`, `ALMOST_CLOSED`, `CLOSED`, `UNKNOWN` |
+| `eyes.state` | `OPEN`, `CLOSED`, `UNKNOWN` |
 | `quality.face_detected` | `false` = no face in the camera |
 | `calibration.status` | `CALIBRATING`, `DONE`, `DEFAULTS` |
 
-For the driver's condition (`driver`, see below) also `summary`, `attention`, `drowsiness` (level,
-reasons, indicators, 1 / 5 / 15 min history), `eyes`, `head`, `mouth`, `quality`, `calibration` and every
-entry of `detections[]`. A detection is an episode with a stable `id` (`"microsleep-3"`): while active it
-is in every message (`STARTED`, then `ONGOING`), and it is sent `ENDED` exactly once. The server reads
-every camera message, so it never misses an `ENDED` one, even a one-shot `HEAD_NOD` (only ever sent as `ENDED`).
+For the driver's condition (`driver`, see below) also `eyes`, `head`, `gaze`, `quality`, `calibration`
+and the entries of `detections[]` whose `type` is `EYES_CLOSED`, `DISTRACTED` or `PHONE_USE`. A detection is
+an episode with a stable `id` (`"eyes_closed-3"`): while active it is in every message (`STARTED`, then
+`ONGOING`), and it is sent `ENDED` exactly once.
 
-## Output: to the simulator
+## Output 1: to the simulator (and the dashboard)
 
-`GAZE_HZ` (default 30) times per second, to every client that is not the camera client:
+`GAZE_HZ` (default 30) times per second, to the simulator and the dashboard:
 
 ```json
 {"event": "gaze_update", "timestamp": 1763640012.345, "status": "ok", "region": "mirror_left",
@@ -91,86 +103,147 @@ angles and zone. The simulator shows "No gaze data" by itself when no `gaze_upda
 ### The driver block
 
 What the camera client says about the driver, from its latest `driver_state`. The camera client decides
-*when* something is a problem (its timing rules, e.g. looking down counts after 1.2 s, eyes almost closed
-after 2 s); the server passes that on and adds a category and a one-line text (`alerts.py`). Example
-(looking down at a phone for 1.5 s; the real message has all fields of every block):
+*when* something is a problem (its timing rules, e.g. looking up / down counts after 1 s, closed eyes after
+0.5 s); the server passes that on and adds a category and a one-line text (`alerts.py`). Example (looking
+down at a phone for 1.5 s):
 
 ```json
 "driver": {
   "severity": "WARNING",
-  "tired": false,
-  "distracted": true,
+  "eyes_closed": false,
+  "not_paying_attention": true,
   "alerts": [
-    {"id": "distracted-1", "type": "DISTRACTED", "category": "distracted", "severity": "WARNING",
+    {"id": "distracted-1", "type": "DISTRACTED", "category": "not_paying_attention", "severity": "WARNING",
      "status": "ONGOING", "duration_s": 1.53, "text": "Not paying attention - looking down for 1.5 s",
-     "details": {"reason": "LOOKING_DOWN", "zone": "DOWN", "glance_s": 1.53, "...": "..."}}
+     "details": {"zone": "DOWN", "away_s": 1.53}}
   ],
   "recent": [],
-  "attention": {"state": "DISTRACTED", "zone": "DOWN", "eyes_off_road_s": 1.53, "glance_down_s": 1.53,
-                "off_road_last_30s_s": 1.5, "weighted_off_road_30s_s": 1.5, "longest_glance_60s_s": 1.53,
-                "glances_60s": 1},
-  "drowsiness": {"level": "ALERT", "level_index": 0, "score": 0.0, "peak_level": "ALERT", "warming_up": false,
-                 "fatigue_load": 0.0, "reasons": [],
-                 "indicators": {"perclos": 0.025, "blink_rate_per_min": 15.0, "long_blinks_60s": 0, "...": "..."},
-                 "history": {"last_60s":   {"long_eye_closures": 0, "microsleeps": 0, "closed_eyes_s": 0.0,
-                                            "yawns": 0, "head_nods": 0, "head_falls": 0, "narrowed_eyes": 0,
-                                            "narrowed_eyes_s": 0.0},
-                             "last_5min":  {"...": "..."}, "last_15min": {"...": "..."}}},
-  "eyes": {"state": "ALMOST_CLOSED", "state_for_s": 1.4, "openness": 0.46, "openness_ratio": null,
-           "normal_learned": true, "trend": "STABLE", "lid_lowered_by_gaze": true},
-  "gaze": {"zone": "DOWN", "zone_for_s": 1.5, "direction": "DOWN", "direction_for_s": 1.5,
-           "yaw_deg": 6.0, "pitch_deg": -46.0, "on_road": false},
+  "eyes": {"state": "OPEN", "state_for_s": 1.4, "openness": 0.46, "source": "BOTH"},
+  "gaze": {"zone": "DOWN", "zone_for_s": 1.5, "yaw_deg": 6.0, "pitch_deg": -46.0},
   "head": {"yaw_deg": 6.0, "pitch_deg": -24.5, "roll_deg": 0.0},
-  "mouth": {"state": "CLOSED", "state_for_s": 63.9},
-  "quality": {"face_detected": true, "face_lost_for_s": 0.0, "eye_metrics_reliable": true, "issues": [],
-              "fps": 30.0},
+  "quality": {"face_detected": true, "faces_in_view": 1, "issues": [], "fps": 30.0},
   "calibration": {"status": "DONE", "phase": null, "progress": 1.0, "message": null}
 }
 ```
 
 | Field | Meaning |
 |---|---|
-| `severity` | Highest severity of the active alerts: `NONE`, `INFO`, `WARNING`, `DANGER`, `CRITICAL`. |
-| `tired` | A tiredness alert is active, or `drowsiness.level` is above `ALERT`. |
-| `distracted` | Not paying attention: a `DISTRACTED` alert is active (eyes open, but away from the road too long). |
+| `severity` | Highest severity of the active alerts: `NONE`, `WARNING`, `DANGER`. |
+| `eyes_closed` | An `EYES_CLOSED` alert is active (eyes closed longer than a blink). |
+| `not_paying_attention` | A `DISTRACTED` or `PHONE_USE` alert is active. |
 | `alerts` | Active detections, most severe first (equal severity: the camera's order). Each has the camera's `id`, `type`, `severity`, `status`, `duration_s` and `details`, plus `category` and `text`. |
-| `recent` | Detections that ended in the last `RECENT_ALERT_S` (5 s), newest first, same fields plus `ended_ago_s`. Catches short one-shot events (head nod, end of a yawn) that the simulator could otherwise miss. |
-| `attention`, `drowsiness`, `eyes`, `gaze`, `head`, `mouth`, `quality`, `calibration` | The camera's blocks of the same name (selected fields; `drowsiness.reasons` = the camera's `contributing`, `drowsiness.history` keyed by window). |
+| `recent` | Detections that ended in the last `RECENT_ALERT_S` (5 s), newest first, same fields plus `ended_ago_s`. |
+| `eyes`, `gaze`, `head`, `quality`, `calibration` | The camera's blocks of the same name (selected fields). |
 
 Alerts per detection type (`category`, example `text`):
 
 | `type` | `category` | `text` |
 |---|---|---|
-| `MICROSLEEP` | `tired` | `MICROSLEEP - WAKE UP! Eyes closed 1.8 s` |
-| `EYES_CLOSED` | `tired` | `Eyes closed for 0.6 s` |
-| `EYES_ALMOST_CLOSED` | `tired` | `Eyes almost closed - you look tired` |
-| `EYES_NARROWED` | `tired` | `Eyes narrower than normal - getting tired` |
-| `TIRED_EYES` | `tired` | `Tired eyes: heavy eyelids, slow blinks` |
-| `YAWN` | `tired` | `Yawning (3 yawns in 5 min)` |
-| `HEAD_NOD` | `tired` | `Head nodding off - wake up!` |
-| `HEAD_FALLING` | `tired` | `Head falling forward - WAKE UP!` |
-| `DROWSY` | `tired` | `Slightly drowsy` / `Drowsy - consider a break` / `Very drowsy - take a break soon` / `Severely drowsy - stop and rest` |
-| `DISTRACTED` | `distracted` | `Not paying attention - looking down for 1.5 s` / `... - looking up for 3.2 s` / `... - eyes off the road 10 s in the last 30 s` |
-| `FACE_NOT_VISIBLE` | `not_visible` | `Driver not visible - head dropped` |
-| anything new | `other` | the type in words (`New thing`) |
+| `EYES_CLOSED` | `eyes_closed` | `Eyes closed for 1.2 s - open your eyes!` |
+| `DISTRACTED` | `not_paying_attention` | `Not paying attention - looking down for 1.5 s` / `... - looking up for 3.2 s` |
+| `PHONE_USE` | `not_paying_attention` | `Not paying attention - phone in hand for 2.0 s` |
+
+## Attention: did the driver look in time?
+
+`attention.py` puts every object of each `simulation_tick` into one of 8 zones around the ego car (pixels
+as sent: `x_px` + right, `y_px` + ahead; 1 m = 31.43 px; lane edge at ±55 px). When an object enters a zone,
+the driver has that zone's window to look at it: the gaze region (from the camera, `status` `ok` only) must
+equal the zone's name for 0.15 s (`LOOK_DWELL_S`) before the window runs out.
+
+| Zone | Where (`x_px`, `y_px`) | Window |
+|---|---|---|
+| `front_left` / `front_center` / `front_right` | x < -55 / -55..55 / > 55, 71 < y <= 943 | 0.5 s |
+| `side_left` / `side_right` (blind spots) | x < -55 / > 55, -157 <= y <= 71 | 1.0 s |
+| `mirror_left` / `mirror_right` | x < -55 / > 55, -943 <= y < -157 | 2.0 s |
+| `mirror_center` | -55..55, -943 <= y < -71 | 2.0 s |
+| none (no timer) | farther than 943 px (30 m), or overlapping the ego car | - |
+
+Looking already when the object enters counts from the entry. A new zone starts a new window (a running one
+is dropped). Zones, windows and the accepted gaze regions are the constants at the top of `attention.py`.
+The check runs on every tick and 20 times per second in between.
+
+Sent to the dashboard:
+
+```json
+{"event": "attention_event", "timestamp": 1763640012.3, "t_s": 2.31, "kind": "noticed",
+ "object_id": "car_1", "type": "car", "zone": "mirror_left", "window_s": 2.0, "reaction_s": 0.42}
+{"event": "attention_summary", "timestamp": 1763640060.0, "duration_s": 60.0, "noticed_count": 4,
+ "missed_count": 3, "avg_reaction_s": 0.56, "missed": [{"t_s": 5.1, "object_id": "truck_1", "type": "truck", "zone": "front_right"}]}
+```
+
+`kind`: `appeared` (first seen in this run), `zone_change`, `noticed` (`reaction_s` set), `missed`.
+`zone` / `window_s` are `null` outside every zone. `t_s` is seconds since `simulation_started`. The summary
+comes at `simulation_ended`. A `missed` object is also told to the copilot (below).
+
+## Output 2: dashboard
+
+The dashboard (`dashboard/`) sends this once after connecting:
+
+```json
+{"type": "hello", "role": "dashboard"}
+```
+
+From then on it gets every `gaze_update` (as above), the latest `driver_state` `DASHBOARD_HZ` (default 10)
+times per second and only when a new one arrived - cleaned: only the three detections (`summary`
+recomputed from them), no other blocks than `summary`, `quality`, `calibration`, `eyes`, `head`, `gaze`,
+`detections` - the simulator's `simulation_started` / `simulation_ended` as received, the
+attention messages (above), and every `chat_message`.
+
+The voice assistant (any client) puts a line into the dashboard's chat with:
+
+```json
+{"type": "chat_message", "role": "assistant", "text": "Car to the left of you!"}
+```
+
+`role` is `user` (what the driver said) or `assistant`; anything else is logged as a warning and dropped.
+The server keeps no history. A chat client gets no `gaze_update` once it has sent its first `chat_message`.
+
+## Output 3: copilot (what the AI says)
+
+The copilot (`copilot/ai-server.py`) sends this once after connecting:
+
+```json
+{"type": "hello", "role": "copilot"}
+```
+
+and from then on gets a `copilot_alert` whenever it should speak (`reactions.py` decides, 10 times per
+second). The copilot speaks `say` at once; a higher `priority` interrupts a lower one.
+
+```json
+{"event": "copilot_alert", "timestamp": 1763640012.3, "kind": "missed_object", "priority": 2,
+ "say": "Car to the left of you!", "repeat": false, "detection": null,
+ "object": {"object_id": "car_3", "type": "car", "zone": "side_left", "side": "left"}}
+```
+
+| `kind` | `priority` | When | `say` |
+|---|---|---|---|
+| `eyes_closed` | 3 | `EYES_CLOSED` has lasted `EYES_CLOSED_VOICE_S` (1 s; shorter = long blink, dashboard only); again every `EYES_CLOSED_REPEAT_S` (3 s) | `Open your eyes! Pay attention to the road!` |
+| `missed_object` | 2 | attention `missed`: the driver did not look at the object in time. Once per object and zone. | `Car to the left of you!`, `Person in front of you!`, `Bike coming up on your right!` ... |
+| `not_paying_attention` | 1 | `PHONE_USE` / `DISTRACTED` starts; again every `ATTENTION_REPEAT_S` (5 s) while it lasts; quiet while the eyes-closed line repeats | `Put the phone down! Pay attention to the road!` / `Stop looking down! Pay attention to the road!` (looking up: `Pay attention to the road!`) |
+
+`detection` (`id`, `type`, `severity`, `duration_s`) is set for the camera kinds, `object` (`object_id`,
+`type`, `zone`, `side`: `left` / `right` / `ahead` / `behind`) for `missed_object`. The copilot gets no
+`gaze_update`. The copilot puts what it said into the dashboard's chat with a `chat_message`.
 
 ## Console output
 
-Every simulator message, and every `gaze_update` whose status, region or alerts (ids and severities)
-changed, is printed exactly as received/sent, one JSON per line, so the two directions can be read side by
-side. Every alert that starts, changes severity or ends is also printed as one short line:
+Every simulator message and `chat_message`, and every `gaze_update` whose status, region or alerts (ids and
+severities) changed, is printed exactly as received/sent, one JSON per line, so the two directions can be
+read side by side. Every alert that starts, changes severity or ends, and every line the copilot is told to
+say, is also printed as one short line:
 
 ```
 11:06:40 INFO    RECEIVED {"event":"simulation_tick","timestamp":1763640012.1,"objects":[]}
 11:06:40 INFO    SENT {"event": "gaze_update", "timestamp": 1763640012.345, "status": "ok", "region": "mirror_left", "driver": {...}}
 11:06:41 INFO    ALERT STARTED distracted-1 DISTRACTED WARNING: Not paying attention - looking down for 1.5 s
+11:06:41 INFO    SAY [not_paying_attention] Stop looking down! Pay attention to the road!
 11:06:42 INFO    ALERT CHANGED distracted-1 DISTRACTED WARNING -> DANGER: Not paying attention - looking down for 2.0 s
 11:06:43 INFO    ALERT ENDED   distracted-1 DISTRACTED after 2.9s
 ```
 
-`SENT` is printed only when at least one simulator is connected. Unchanged `gaze_update`s (30 Hz)
-and camera messages (~30 Hz) are printed only with `LOG_LEVEL=DEBUG`. The browser console of the simulator shows the same pairs
-(its own messages, plus `RECEIVED` for each `gaze_update`).
+`SENT` is printed only when at least one simulator or dashboard is connected. Unchanged `gaze_update`s
+(30 Hz) and camera messages (~30 Hz) are printed only with `LOG_LEVEL=DEBUG`. The browser console of the
+simulator shows the same pairs (its own messages, plus `RECEIVED` for each `gaze_update`).
 
 ## Run
 
@@ -192,8 +265,12 @@ on `0.0.0.0:8765`; the host port is `SERVER_PORT` in the root `.env`.
 | `PORT` | `8765` | Port. The simulator's `WS_URL` must match. |
 | `LOG_LEVEL` | `INFO` | `DEBUG` also prints every `gaze_update` and every camera message. |
 | `GAZE_HZ` | `30` | `gaze_update` messages per second. |
+| `DASHBOARD_HZ` | `10` | `driver_state` messages per second to the dashboard (the camera sends ~30). |
 | `CAMERA_TIMEOUT_S` | `1.0` | No `driver_state` for this long: `no_gaze_client`. |
 | `FRONT_SPLIT_DEG` | `7` | Looking at the road, \|yaw\| beyond this: `front_left` / `front_right`. |
 | `RECENT_ALERT_S` | `5` | An ended alert stays in `driver.recent` this long. |
+| `EYES_CLOSED_VOICE_S` | `1.0` | The copilot says "Open your eyes!" once the eyes have been closed this long. |
+| `EYES_CLOSED_REPEAT_S` | `3.0` | ... and again every this many seconds while they stay closed. |
+| `ATTENTION_REPEAT_S` | `5.0` | The "pay attention" line again every this many seconds while it lasts. |
 
 In Docker these come from the root `.env`.

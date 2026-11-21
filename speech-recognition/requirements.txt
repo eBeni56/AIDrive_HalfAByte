@@ -1,0 +1,4 @@
+moonshine-voice>=0.1
+deepfilter-stream>=0.1
+sounddevice>=0.5
+numpy>=1.24

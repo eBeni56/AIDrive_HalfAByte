@@ -27,29 +27,6 @@ class Ema:
         return self.value
 
 
-class AsymmetricEma:
-    """EMA that rises with one time constant and falls with another ("fast up, slow down")."""
-
-    def __init__(self, rise_tau_s: float, fall_tau_s: float) -> None:
-        self.rise_tau_s, self.fall_tau_s = rise_tau_s, fall_tau_s
-        self.value: float | None = None
-        self._t: float | None = None
-
-    def reset(self) -> None:
-        self.value, self._t = None, None
-
-    def update(self, x: float, t: float) -> float:
-        if self.value is None or self._t is None:
-            self.value, self._t = x, t
-            return x
-        dt = max(t - self._t, 1e-4)
-        self._t = t
-        tau = self.rise_tau_s if x > self.value else self.fall_tau_s
-        alpha = 1.0 - math.exp(-dt / max(tau, 1e-4))
-        self.value += alpha * (x - self.value)
-        return self.value
-
-
 class OneEuroFilter:
     """One-Euro filter (Casiez et al., CHI 2012): smooths a lot when still, little when moving fast."""
 
@@ -81,30 +58,3 @@ class OneEuroFilter:
         a = self._alpha(self.min_cutoff + self.beta * abs(self._dx), dt)
         self._x = a * x + (1.0 - a) * self._x
         return self._x
-
-
-class Differentiator:
-    """Smoothed time derivative of a signal (units per second)."""
-
-    def __init__(self, tau_s: float) -> None:
-        self._ema = Ema(tau_s)
-        self._prev: tuple[float, float] | None = None
-
-    def reset(self) -> None:
-        self._ema.reset()
-        self._prev = None
-
-    @property
-    def value(self) -> float:
-        return self._ema.value or 0.0
-
-    def update(self, x: float, t: float) -> float:
-        if self._prev is None:
-            self._prev = (t, x)
-            return self._ema.update(0.0, t)
-        t0, x0 = self._prev
-        self._prev = (t, x)
-        dt = t - t0
-        if dt <= 0:
-            return self.value
-        return self._ema.update((x - x0) / dt, t)

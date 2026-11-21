@@ -1,4 +1,4 @@
-"""Main loop: read frames -> DriverMonitor -> terminal / JSONL / WebSocket / preview window."""
+"""Main loop: read frames -> DriverMonitor -> terminal / JSONL / WebSocket / preview window / MJPEG stream."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import cv2
 from driver_monitor.capture.camera import Camera, FrameSource, VideoFile
 from driver_monitor.config import AppConfig
 from driver_monitor.output.jsonl import JsonlWriter
+from driver_monitor.output.mjpeg import MjpegServer
 from driver_monitor.output.overlay import OverlayRenderer
 from driver_monitor.output.terminal import TerminalReporter
 from driver_monitor.output.ws_sender import WebSocketSender
@@ -38,10 +39,17 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
     writer = JsonlWriter(opts.json_path) if opts.json_path else None
     sender = WebSocketSender(cfg.websocket) if cfg.websocket.enabled else None
     overlay = OverlayRenderer(mirror=True)
+    stream: MjpegServer | None = None
+    if cfg.camera_stream.enabled:
+        try:
+            stream = MjpegServer(cfg.camera_stream)
+        except OSError as e:  # most often: the port is already used
+            reporter.line(f"Camera stream disabled: port {cfg.camera_stream.port}: {e}")
     reporter.line(
         f"driver_monitor: {source.describe()}"
         + (f", writing JSON Lines to {opts.json_path}" if opts.json_path else "")
         + (f", streaming JSON to {cfg.websocket.url}" if sender else "")
+        + (f", camera stream at {stream.url}" if stream else "")
     )
     if opts.calibrate and cfg.calibration.enabled:
         reporter.line(
@@ -64,6 +72,8 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
                 frame, t, latency_start=started, camera_fps=source.fps if not opts.video else None
             )
             frames += 1
+            while monitor.notes:
+                reporter.line(monitor.notes.pop(0))
             reporter.report(result.state)
             if writer is not None:
                 writer.write(result.state)
@@ -71,9 +81,15 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
                 sender.send(result.state, t)
                 for msg in sender.events():
                     reporter.line(msg)
+            to_stream = stream is not None and stream.wants_frame(t)
+            if not opts.show_window and not to_stream:
+                continue
+            preview = overlay.render(frame, result)
+            if to_stream:
+                stream.publish(preview)
             if not opts.show_window:
                 continue
-            cv2.imshow(WINDOW, overlay.render(frame, result))
+            cv2.imshow(WINDOW, preview)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
@@ -98,6 +114,8 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
         if sender is not None:
             sender.close()
             reporter.line(f"WebSocket: {sender.sent} messages sent, {sender.dropped} dropped.")
+        if stream is not None:
+            stream.close()
         if opts.show_window:
             cv2.destroyAllWindows()
     return 0

@@ -224,13 +224,26 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Local logs and databases
+pickup_detection/drive_logs.db
+pickup_detection/models
+*.log
+
+# Models folder
+models/
+
 # Claude Code local settings
 .claude/
 
 # driver_monitor: downloaded model weights and JSON Lines recordings
 driver_monitor/models/*.task
+driver_monitor/models/*.tflite
 driver_monitor/models/*.part
 driver_monitor/recordings/
 *.jsonl
+
+# Speech recognition test transcripts
+speech-recognition/test_with_keyterms.txt
+speech-recognition/transcript.txt
 
 .env

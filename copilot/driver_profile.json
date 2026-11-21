@@ -1,0 +1,20 @@
+{
+  "driver_name": "Daniel",
+  "default_city": "Cluj-Napoca",
+  "hobbies": [
+    "Formula 1",
+    "sim racing",
+    "AI and automotive tech",
+    "football",
+    "space",
+    "technology",
+    "porsche engineering"
+  ],
+  "wake_words": [
+    "hey jarvis",
+    "hi jarvis",
+    "ok jarvis",
+    "jarvis"
+  ],
+  "listen_window_s": 15.0
+}

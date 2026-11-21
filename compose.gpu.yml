@@ -1,0 +1,13 @@
+# Gives the ollama container the NVIDIA GPU (much faster answers than the CPU).
+# start.bat / start.sh add this file by themselves when nvidia-smi is found (OLLAMA_GPU=0 / 1 forces it off / on).
+# By hand:  docker compose -f compose.yml -f compose.gpu.yml up --build
+# Needs the NVIDIA driver; Docker Desktop on Windows passes the GPU through WSL 2.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

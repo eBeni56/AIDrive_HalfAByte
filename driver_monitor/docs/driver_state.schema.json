@@ -1,61 +1,5 @@
-﻿{
+{
   "$defs": {
-    "Attention": {
-      "additionalProperties": false,
-      "properties": {
-        "state": {
-          "$ref": "#/$defs/AttentionState",
-          "default": "UNKNOWN"
-        },
-        "zone": {
-          "$ref": "#/$defs/GazeZone",
-          "default": "UNKNOWN"
-        },
-        "eyes_off_road_s": {
-          "default": 0.0,
-          "title": "Eyes Off Road S",
-          "type": "number"
-        },
-        "glance_down_s": {
-          "default": 0.0,
-          "title": "Glance Down S",
-          "type": "number"
-        },
-        "off_road_last_30s_s": {
-          "default": 0.0,
-          "title": "Off Road Last 30S S",
-          "type": "number"
-        },
-        "weighted_off_road_30s_s": {
-          "default": 0.0,
-          "title": "Weighted Off Road 30S S",
-          "type": "number"
-        },
-        "longest_glance_60s_s": {
-          "default": 0.0,
-          "title": "Longest Glance 60S S",
-          "type": "number"
-        },
-        "glances_60s": {
-          "default": 0,
-          "title": "Glances 60S",
-          "type": "integer"
-        }
-      },
-      "title": "Attention",
-      "type": "object"
-    },
-    "AttentionState": {
-      "enum": [
-        "ATTENTIVE",
-        "CHECKING_MIRROR",
-        "GLANCING_AWAY",
-        "DISTRACTED",
-        "UNKNOWN"
-      ],
-      "title": "AttentionState",
-      "type": "string"
-    },
     "Calibration": {
       "additionalProperties": false,
       "properties": {
@@ -88,28 +32,6 @@
           ],
           "default": null,
           "title": "Message"
-        },
-        "neutral_head": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/HeadAngles"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "open_ear": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PerEye"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         }
       },
       "required": [
@@ -201,117 +123,11 @@
     "DetectionType": {
       "enum": [
         "EYES_CLOSED",
-        "MICROSLEEP",
-        "EYES_ALMOST_CLOSED",
-        "EYES_NARROWED",
-        "TIRED_EYES",
-        "YAWN",
-        "HEAD_NOD",
-        "HEAD_FALLING",
         "DISTRACTED",
-        "FACE_NOT_VISIBLE",
-        "DROWSY"
+        "PHONE_USE"
       ],
       "title": "DetectionType",
       "type": "string"
-    },
-    "Drowsiness": {
-      "additionalProperties": false,
-      "properties": {
-        "level": {
-          "$ref": "#/$defs/DrowsinessLevel",
-          "default": "ALERT"
-        },
-        "level_index": {
-          "default": 0,
-          "title": "Level Index",
-          "type": "integer"
-        },
-        "score": {
-          "default": 0.0,
-          "title": "Score",
-          "type": "number"
-        },
-        "peak_level": {
-          "$ref": "#/$defs/DrowsinessLevel",
-          "default": "ALERT"
-        },
-        "warming_up": {
-          "default": true,
-          "title": "Warming Up",
-          "type": "boolean"
-        },
-        "contributing": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Contributing",
-          "type": "array"
-        },
-        "fatigue_load": {
-          "default": 0.0,
-          "title": "Fatigue Load",
-          "type": "number"
-        },
-        "history": {
-          "items": {
-            "$ref": "#/$defs/HistoryWindow"
-          },
-          "title": "History",
-          "type": "array"
-        },
-        "indicators": {
-          "$ref": "#/$defs/Indicators"
-        }
-      },
-      "title": "Drowsiness",
-      "type": "object"
-    },
-    "DrowsinessLevel": {
-      "enum": [
-        "ALERT",
-        "SLIGHTLY_DROWSY",
-        "DROWSY",
-        "VERY_DROWSY",
-        "SEVERELY_DROWSY"
-      ],
-      "title": "DrowsinessLevel",
-      "type": "string"
-    },
-    "EyeReadingOut": {
-      "additionalProperties": false,
-      "properties": {
-        "openness": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Openness"
-        },
-        "ear": {
-          "title": "Ear",
-          "type": "number"
-        },
-        "blink_score": {
-          "title": "Blink Score",
-          "type": "number"
-        },
-        "state": {
-          "$ref": "#/$defs/EyeState"
-        }
-      },
-      "required": [
-        "openness",
-        "ear",
-        "blink_score",
-        "state"
-      ],
-      "title": "EyeReadingOut",
-      "type": "object"
     },
     "EyeSource": {
       "enum": [
@@ -325,46 +141,23 @@
     "EyeState": {
       "enum": [
         "OPEN",
-        "ALMOST_CLOSED",
         "CLOSED",
         "UNKNOWN"
       ],
       "title": "EyeState",
       "type": "string"
     },
-    "EyeTrend": {
-      "enum": [
-        "CLOSING",
-        "OPENING",
-        "STABLE"
-      ],
-      "title": "EyeTrend",
-      "type": "string"
-    },
     "Eyes": {
       "additionalProperties": false,
       "properties": {
-        "left": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EyeReadingOut"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "state": {
+          "$ref": "#/$defs/EyeState",
+          "default": "UNKNOWN"
         },
-        "right": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EyeReadingOut"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "state_for_s": {
+          "default": 0.0,
+          "title": "State For S",
+          "type": "number"
         },
         "openness": {
           "anyOf": [
@@ -378,65 +171,9 @@
           "default": null,
           "title": "Openness"
         },
-        "state": {
-          "$ref": "#/$defs/EyeState",
-          "default": "UNKNOWN"
-        },
-        "state_for_s": {
-          "default": 0.0,
-          "title": "State For S",
-          "type": "number"
-        },
-        "trend": {
-          "$ref": "#/$defs/EyeTrend",
-          "default": "STABLE"
-        },
-        "openness_velocity_per_s": {
-          "default": 0.0,
-          "title": "Openness Velocity Per S",
-          "type": "number"
-        },
         "source": {
           "$ref": "#/$defs/EyeSource",
           "default": "BOTH"
-        },
-        "lid_lowered_by_gaze": {
-          "default": false,
-          "title": "Lid Lowered By Gaze",
-          "type": "boolean"
-        },
-        "last_blink": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/LastBlink"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "normal_openness": {
-          "default": 1.0,
-          "title": "Normal Openness",
-          "type": "number"
-        },
-        "normal_learned": {
-          "default": false,
-          "title": "Normal Learned",
-          "type": "boolean"
-        },
-        "openness_ratio": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Openness Ratio"
         }
       },
       "title": "Eyes",
@@ -445,21 +182,14 @@
     "Gaze": {
       "additionalProperties": false,
       "properties": {
-        "direction": {
-          "$ref": "#/$defs/GazeDirection",
+        "zone": {
+          "$ref": "#/$defs/GazeZone",
           "default": "UNKNOWN"
         },
-        "horizontal": {
-          "$ref": "#/$defs/Horizontal",
-          "default": "CENTER"
-        },
-        "vertical": {
-          "$ref": "#/$defs/Vertical",
-          "default": "CENTER"
-        },
-        "intensity": {
-          "$ref": "#/$defs/Intensity",
-          "default": "NONE"
+        "zone_for_s": {
+          "default": 0.0,
+          "title": "Zone For S",
+          "type": "number"
         },
         "yaw_deg": {
           "anyOf": [
@@ -484,100 +214,10 @@
           ],
           "default": null,
           "title": "Pitch Deg"
-        },
-        "head_yaw_deg": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Head Yaw Deg"
-        },
-        "head_pitch_deg": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Head Pitch Deg"
-        },
-        "eye_yaw_deg": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Eye Yaw Deg"
-        },
-        "eye_pitch_deg": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Eye Pitch Deg"
-        },
-        "on_road": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "On Road"
-        },
-        "direction_for_s": {
-          "default": 0.0,
-          "title": "Direction For S",
-          "type": "number"
-        },
-        "zone": {
-          "$ref": "#/$defs/GazeZone",
-          "default": "UNKNOWN"
-        },
-        "zone_for_s": {
-          "default": 0.0,
-          "title": "Zone For S",
-          "type": "number"
         }
       },
       "title": "Gaze",
       "type": "object"
-    },
-    "GazeDirection": {
-      "enum": [
-        "CENTER",
-        "LEFT",
-        "RIGHT",
-        "UP",
-        "DOWN",
-        "UP_LEFT",
-        "UP_RIGHT",
-        "DOWN_LEFT",
-        "DOWN_RIGHT",
-        "UNKNOWN"
-      ],
-      "title": "GazeDirection",
-      "type": "string"
     },
     "GazeZone": {
       "description": "Where the driver looks (config: gaze_zones + gaze.on_road_*).",
@@ -633,350 +273,9 @@
           ],
           "default": null,
           "title": "Roll Deg"
-        },
-        "yaw_velocity_dps": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Yaw Velocity Dps"
-        },
-        "pitch_velocity_dps": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Pitch Velocity Dps"
-        },
-        "roll_velocity_dps": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Roll Velocity Dps"
         }
       },
       "title": "Head",
-      "type": "object"
-    },
-    "HeadAngles": {
-      "additionalProperties": false,
-      "properties": {
-        "yaw_deg": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Yaw Deg"
-        },
-        "pitch_deg": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Pitch Deg"
-        },
-        "roll_deg": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Roll Deg"
-        }
-      },
-      "required": [
-        "yaw_deg",
-        "pitch_deg",
-        "roll_deg"
-      ],
-      "title": "HeadAngles",
-      "type": "object"
-    },
-    "HistoryWindow": {
-      "additionalProperties": false,
-      "description": "Fatigue events in the last `window_s` seconds (from the fatigue ledger).",
-      "properties": {
-        "window_s": {
-          "title": "Window S",
-          "type": "number"
-        },
-        "long_eye_closures": {
-          "default": 0,
-          "title": "Long Eye Closures",
-          "type": "integer"
-        },
-        "microsleeps": {
-          "default": 0,
-          "title": "Microsleeps",
-          "type": "integer"
-        },
-        "closed_eyes_s": {
-          "default": 0.0,
-          "title": "Closed Eyes S",
-          "type": "number"
-        },
-        "yawns": {
-          "default": 0,
-          "title": "Yawns",
-          "type": "integer"
-        },
-        "head_nods": {
-          "default": 0,
-          "title": "Head Nods",
-          "type": "integer"
-        },
-        "head_falls": {
-          "default": 0,
-          "title": "Head Falls",
-          "type": "integer"
-        },
-        "narrowed_eyes": {
-          "default": 0,
-          "title": "Narrowed Eyes",
-          "type": "integer"
-        },
-        "narrowed_eyes_s": {
-          "default": 0.0,
-          "title": "Narrowed Eyes S",
-          "type": "number"
-        }
-      },
-      "required": [
-        "window_s"
-      ],
-      "title": "HistoryWindow",
-      "type": "object"
-    },
-    "Horizontal": {
-      "enum": [
-        "LEFT",
-        "CENTER",
-        "RIGHT"
-      ],
-      "title": "Horizontal",
-      "type": "string"
-    },
-    "Indicators": {
-      "additionalProperties": false,
-      "properties": {
-        "perclos": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Perclos"
-        },
-        "perclos_window_s": {
-          "default": 0.0,
-          "title": "Perclos Window S",
-          "type": "number"
-        },
-        "blink_rate_per_min": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Blink Rate Per Min"
-        },
-        "mean_blink_duration_ms": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Mean Blink Duration Ms"
-        },
-        "long_blinks_60s": {
-          "default": 0,
-          "title": "Long Blinks 60S",
-          "type": "integer"
-        },
-        "mean_openness_60s": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Mean Openness 60S"
-        },
-        "mean_openness_ratio_60s": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Mean Openness Ratio 60S"
-        },
-        "yawns_5min": {
-          "default": 0,
-          "title": "Yawns 5Min",
-          "type": "integer"
-        },
-        "head_nods_5min": {
-          "default": 0,
-          "title": "Head Nods 5Min",
-          "type": "integer"
-        },
-        "head_falls_10min": {
-          "default": 0,
-          "title": "Head Falls 10Min",
-          "type": "integer"
-        },
-        "microsleeps_10min": {
-          "default": 0,
-          "title": "Microsleeps 10Min",
-          "type": "integer"
-        }
-      },
-      "title": "Indicators",
-      "type": "object"
-    },
-    "Intensity": {
-      "enum": [
-        "NONE",
-        "SLIGHT",
-        "MODERATE",
-        "STRONG",
-        "EXTREME"
-      ],
-      "title": "Intensity",
-      "type": "string"
-    },
-    "LastBlink": {
-      "additionalProperties": false,
-      "properties": {
-        "ended_t": {
-          "title": "Ended T",
-          "type": "number"
-        },
-        "duration_ms": {
-          "title": "Duration Ms",
-          "type": "number"
-        }
-      },
-      "required": [
-        "ended_t",
-        "duration_ms"
-      ],
-      "title": "LastBlink",
-      "type": "object"
-    },
-    "Mouth": {
-      "additionalProperties": false,
-      "properties": {
-        "jaw_open": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Jaw Open"
-        },
-        "mar": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Mar"
-        },
-        "state": {
-          "$ref": "#/$defs/MouthState",
-          "default": "UNKNOWN"
-        },
-        "state_for_s": {
-          "default": 0.0,
-          "title": "State For S",
-          "type": "number"
-        }
-      },
-      "title": "Mouth",
-      "type": "object"
-    },
-    "MouthState": {
-      "enum": [
-        "CLOSED",
-        "OPEN",
-        "WIDE_OPEN",
-        "UNKNOWN"
-      ],
-      "title": "MouthState",
-      "type": "string"
-    },
-    "PerEye": {
-      "additionalProperties": false,
-      "properties": {
-        "left": {
-          "title": "Left",
-          "type": "number"
-        },
-        "right": {
-          "title": "Right",
-          "type": "number"
-        }
-      },
-      "required": [
-        "left",
-        "right"
-      ],
-      "title": "PerEye",
       "type": "object"
     },
     "Quality": {
@@ -1010,14 +309,6 @@
           "title": "Faces In View",
           "type": "integer"
         },
-        "face_lost_for_s": {
-          "title": "Face Lost For S",
-          "type": "number"
-        },
-        "eye_metrics_reliable": {
-          "title": "Eye Metrics Reliable",
-          "type": "boolean"
-        },
         "issues": {
           "items": {
             "$ref": "#/$defs/QualityIssue"
@@ -1030,9 +321,7 @@
         "fps",
         "latency_ms",
         "face_detected",
-        "faces_in_view",
-        "face_lost_for_s",
-        "eye_metrics_reliable"
+        "faces_in_view"
       ],
       "title": "Quality",
       "type": "object"
@@ -1052,10 +341,8 @@
     "Severity": {
       "enum": [
         "NONE",
-        "INFO",
         "WARNING",
-        "DANGER",
-        "CRITICAL"
+        "DANGER"
       ],
       "title": "Severity",
       "type": "string"
@@ -1067,17 +354,6 @@
           "$ref": "#/$defs/Severity",
           "default": "NONE"
         },
-        "primary": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DetectionType"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "active": {
           "items": {
             "$ref": "#/$defs/DetectionType"
@@ -1088,15 +364,6 @@
       },
       "title": "Summary",
       "type": "object"
-    },
-    "Vertical": {
-      "enum": [
-        "UP",
-        "CENTER",
-        "DOWN"
-      ],
-      "title": "Vertical",
-      "type": "string"
     }
   },
   "additionalProperties": false,
@@ -1108,7 +375,7 @@
       "type": "string"
     },
     "schema_version": {
-      "default": 1,
+      "default": 2,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -1138,15 +405,6 @@
     "gaze": {
       "$ref": "#/$defs/Gaze"
     },
-    "mouth": {
-      "$ref": "#/$defs/Mouth"
-    },
-    "attention": {
-      "$ref": "#/$defs/Attention"
-    },
-    "drowsiness": {
-      "$ref": "#/$defs/Drowsiness"
-    },
     "detections": {
       "items": {
         "$ref": "#/$defs/DetectionOut"
@@ -1163,10 +421,7 @@
     "calibration",
     "eyes",
     "head",
-    "gaze",
-    "mouth",
-    "attention",
-    "drowsiness"
+    "gaze"
   ],
   "title": "DriverState",
   "type": "object"
