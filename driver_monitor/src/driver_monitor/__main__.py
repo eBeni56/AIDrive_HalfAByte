@@ -9,7 +9,7 @@ import sys
 
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(prog="driver_monitor", description="Webcam driver monitoring (MediaPipe).")
+    p = argparse.ArgumentParser(prog="driver_monitor", description="Webcam driver monitoring: eyes closed, gaze zone, phone in the hand (MediaPipe).")
     p.add_argument(
         "--config",
         help="YAML file overriding the defaults (default: config/driver_monitor.yaml if it exists; see --dump-config)",

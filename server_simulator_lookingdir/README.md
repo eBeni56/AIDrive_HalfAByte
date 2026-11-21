@@ -42,7 +42,7 @@ the rest is ignored. Any field may be missing or null (= no data, not an error).
 | `gaze.yaw_deg` | 0 = straight ahead, negative = left, positive = right |
 | `gaze.pitch_deg` | 0 = straight, positive = up, negative = down |
 | `gaze.zone` | `ROAD`, `REAR_MIRROR`, `LEFT_MIRROR`, `RIGHT_MIRROR`, `LEFT_SIDE`, `RIGHT_SIDE`, `UP`, `DOWN`, `UNKNOWN` |
-| `eyes.state` | `OPEN`, `ALMOST_CLOSED`, `CLOSED`, `UNKNOWN` |
+| `eyes.state` | `OPEN`, `CLOSED`, `UNKNOWN` |
 | `quality.face_detected` | `false` = no face in the camera |
 | `calibration.status` | `CALIBRATING`, `DONE`, `DEFAULTS` |
 

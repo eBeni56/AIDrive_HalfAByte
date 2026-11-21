@@ -1,7 +1,7 @@
 [project]
 name = "driver-monitor"
 version = "0.1.0"
-description = "Camera-based driver monitoring: eye closure, microsleep, drowsiness, yawns, head drops and distraction (MediaPipe Face Landmarker)."
+description = "Camera-based driver monitoring: eyes closed, where the driver looks, phone in the hand (MediaPipe)."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

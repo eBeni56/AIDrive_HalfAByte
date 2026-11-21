@@ -1,4 +1,4 @@
-// The driver monitor's own preview (eye and lip contours, iris, gaze arrow, status panel, detections),
+// The driver monitor's own preview (eye contours, iris, gaze arrow, phone box, status panel, detections),
 // streamed as MJPEG. The browser can't open the webcam itself: the driver monitor already uses it.
 import { useEffect, useState } from "react";
 import { CAMERA_URL, RETRY_MS } from "../config";

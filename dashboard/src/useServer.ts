@@ -1,6 +1,6 @@
 // Connection to the server: says hello as the dashboard, then receives
 //   driver_state           (DASHBOARD_HZ, default 10/s)  what the camera detects   -> driver display
-//   gaze_update            (GAZE_HZ, default 10/s)       where the driver looks    -> both
+//   gaze_update            (GAZE_HZ, default 10/s)       where the driver looks    -> simulation log
 //   simulation_started / _ended, attention_event, attention_summary              -> both
 //   chat_message           (when one is sent)                                     -> chat panel
 // Reconnects every RETRY_MS if the server is not running or restarts.
@@ -53,7 +53,6 @@ export function useServer(): boolean {
           hudInput.driverState(msg as unknown as DriverState);
           onDriverState(msg as unknown as DriverState);
         } else if (msg.event === "gaze_update") {
-          hudInput.gaze(msg as unknown as GazeUpdate);
           onGaze(msg as unknown as GazeUpdate);
         } else if (msg.type === "chat_message" && (msg.role === "user" || msg.role === "assistant")) {
           addChatMessage(msg.role, String(msg.text ?? ""));

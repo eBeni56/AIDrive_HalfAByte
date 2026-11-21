@@ -7,10 +7,8 @@ from enum import StrEnum
 
 class Severity(StrEnum):
     NONE = "NONE"
-    INFO = "INFO"
     WARNING = "WARNING"
     DANGER = "DANGER"
-    CRITICAL = "CRITICAL"
 
     @property
     def rank(self) -> int:
@@ -21,28 +19,13 @@ class Severity(StrEnum):
         return max(values, key=lambda s: s.rank, default=Severity.NONE)
 
 
-_SEVERITY_RANK = {
-    Severity.NONE: 0,
-    Severity.INFO: 1,
-    Severity.WARNING: 2,
-    Severity.DANGER: 3,
-    Severity.CRITICAL: 4,
-}
+_SEVERITY_RANK = {Severity.NONE: 0, Severity.WARNING: 1, Severity.DANGER: 2}
 
 
 class DetectionType(StrEnum):
-    EYES_CLOSED = "EYES_CLOSED"
-    MICROSLEEP = "MICROSLEEP"
-    EYES_ALMOST_CLOSED = "EYES_ALMOST_CLOSED"
-    EYES_NARROWED = "EYES_NARROWED"
-    TIRED_EYES = "TIRED_EYES"
-    YAWN = "YAWN"
-    HEAD_NOD = "HEAD_NOD"
-    HEAD_FALLING = "HEAD_FALLING"
-    DISTRACTED = "DISTRACTED"
-    FACE_NOT_VISIBLE = "FACE_NOT_VISIBLE"
-    PHONE_USE = "PHONE_USE"
-    DROWSY = "DROWSY"
+    EYES_CLOSED = "EYES_CLOSED"  # eyes closed longer than a blink
+    DISTRACTED = "DISTRACTED"  # looking at none of the road / mirror / side-window zones (up or down)
+    PHONE_USE = "PHONE_USE"  # a mobile phone in the hand
 
 
 class DetectionStatus(StrEnum):
@@ -53,56 +36,14 @@ class DetectionStatus(StrEnum):
 
 class EyeState(StrEnum):
     OPEN = "OPEN"
-    ALMOST_CLOSED = "ALMOST_CLOSED"
     CLOSED = "CLOSED"
     UNKNOWN = "UNKNOWN"
-
-
-class EyeTrend(StrEnum):
-    CLOSING = "CLOSING"
-    OPENING = "OPENING"
-    STABLE = "STABLE"
 
 
 class EyeSource(StrEnum):
     BOTH = "BOTH"
     LEFT_ONLY = "LEFT_ONLY"
     RIGHT_ONLY = "RIGHT_ONLY"
-
-
-class Horizontal(StrEnum):
-    LEFT = "LEFT"
-    CENTER = "CENTER"
-    RIGHT = "RIGHT"
-
-
-class Vertical(StrEnum):
-    UP = "UP"
-    CENTER = "CENTER"
-    DOWN = "DOWN"
-
-
-class GazeDirection(StrEnum):
-    CENTER = "CENTER"
-    LEFT = "LEFT"
-    RIGHT = "RIGHT"
-    UP = "UP"
-    DOWN = "DOWN"
-    UP_LEFT = "UP_LEFT"
-    UP_RIGHT = "UP_RIGHT"
-    DOWN_LEFT = "DOWN_LEFT"
-    DOWN_RIGHT = "DOWN_RIGHT"
-    UNKNOWN = "UNKNOWN"
-
-    @staticmethod
-    def combine(h: Horizontal, v: Vertical) -> GazeDirection:
-        if h is Horizontal.CENTER and v is Vertical.CENTER:
-            return GazeDirection.CENTER
-        if v is Vertical.CENTER:
-            return GazeDirection(h.value)
-        if h is Horizontal.CENTER:
-            return GazeDirection(v.value)
-        return GazeDirection(f"{v.value}_{h.value}")
 
 
 class GazeZone(StrEnum):
@@ -119,49 +60,9 @@ class GazeZone(StrEnum):
     UNKNOWN = "UNKNOWN"
 
     @property
-    def is_mirror(self) -> bool:
-        return self in (GazeZone.REAR_MIRROR, GazeZone.LEFT_MIRROR, GazeZone.RIGHT_MIRROR)
-
-
-class Intensity(StrEnum):
-    NONE = "NONE"
-    SLIGHT = "SLIGHT"
-    MODERATE = "MODERATE"
-    STRONG = "STRONG"
-    EXTREME = "EXTREME"
-
-
-class MouthState(StrEnum):
-    CLOSED = "CLOSED"
-    OPEN = "OPEN"
-    WIDE_OPEN = "WIDE_OPEN"
-    UNKNOWN = "UNKNOWN"
-
-
-class AttentionState(StrEnum):
-    ATTENTIVE = "ATTENTIVE"
-    CHECKING_MIRROR = "CHECKING_MIRROR"
-    GLANCING_AWAY = "GLANCING_AWAY"
-    DISTRACTED = "DISTRACTED"
-    UNKNOWN = "UNKNOWN"
-
-
-class DrowsinessLevel(StrEnum):
-    ALERT = "ALERT"
-    SLIGHTLY_DROWSY = "SLIGHTLY_DROWSY"
-    DROWSY = "DROWSY"
-    VERY_DROWSY = "VERY_DROWSY"
-    SEVERELY_DROWSY = "SEVERELY_DROWSY"
-
-    @property
-    def number(self) -> int:
-        """0 (ALERT) .. 4 (SEVERELY_DROWSY)."""
-        return list(DrowsinessLevel).index(self)
-
-    @staticmethod
-    def from_index(i: int) -> DrowsinessLevel:
-        levels = list(DrowsinessLevel)
-        return levels[max(0, min(i, len(levels) - 1))]
+    def is_away(self) -> bool:
+        """None of the places a driver has a reason to look at (road, mirrors, side windows)."""
+        return self in (GazeZone.UP, GazeZone.DOWN)
 
 
 class CalibrationStatus(StrEnum):

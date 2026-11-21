@@ -5,13 +5,13 @@
 // stays for at least HOLD_MS (even if its problem is already over), so the display never flickers.
 import { useEffect, useState } from "react";
 import { STALE_MS } from "./config";
-import type { AttentionEvent, DriverState, GazeUpdate } from "./types";
+import type { AttentionEvent, DriverState } from "./types";
 
 const HOLD_MS = 3000; // a message stays at least this long
-const AWAY_MS = 1000; // looking at none of the 8 regions this long -> "Eyes on the road"
+const NO_FACE_MS = 1000; // the camera sees no face this long -> "The camera can't see you"
 
 export type Level = "ok" | "info" | "warn" | "danger";
-export type IconName = "alarm" | "obstacle" | "phone" | "eye" | "coffee" | "face" | "camera" | "check";
+export type IconName = "alarm" | "obstacle" | "phone" | "eye" | "face" | "camera" | "check";
 export type Arrow = "left" | "right" | "ahead" | "behind" | "behind-left" | "behind-right";
 
 export interface Issue {
@@ -28,8 +28,7 @@ export interface Issue {
 let driver: DriverState | null = null;
 let driverAt = 0;
 let connected = false;
-let gaze: GazeUpdate | null = null;
-let awaySince: number | null = null;
+let noFaceSince: number | null = null;
 // simulator objects the driver still has to look at: object_id -> what, where, until when
 const pending = new Map<string, { type: string; zone: string; until: number }>();
 
@@ -40,12 +39,8 @@ export const hudInput = {
   driverState(s: DriverState) {
     driver = s;
     driverAt = Date.now();
-  },
-  gaze(g: GazeUpdate) {
-    gaze = g;
-    const away = g.status === "ok" && g.region === "away";
-    if (!away) awaySince = null;
-    else if (awaySince === null) awaySince = Date.now();
+    if (s.quality.face_detected) noFaceSince = null;
+    else if (noFaceSince === null) noFaceSince = driverAt;
   },
   simulation(msg: { event?: string }) {
     if (msg.event === "simulation_started" || msg.event === "simulation_ended") {
@@ -85,16 +80,12 @@ export function activeIssues(now: number): Issue[] {
   const fresh = connected && driver !== null && now - driverAt < STALE_MS ? driver : null;
   const det = (type: string) => fresh?.detections.find((d) => d.type === type && d.status !== "ENDED");
 
-  const micro = det("MICROSLEEP");
   const closed = det("EYES_CLOSED");
-  if (micro || closed) {
+  if (closed) {
     out.push({
       key: "eyes-closed", priority: 100, level: "danger", icon: "alarm",
-      title: "Wake up! Open your eyes", detail: `Your eyes have been closed for ${(micro ?? closed)!.duration_s.toFixed(1)} s`,
+      title: "Wake up! Open your eyes", detail: `Your eyes have been closed for ${closed.duration_s.toFixed(1)} s`,
     });
-  }
-  if (det("HEAD_FALLING")) {
-    out.push({ key: "head-falling", priority: 95, level: "danger", icon: "alarm", title: "Wake up!", detail: "Your head is dropping" });
   }
 
   // the most urgent object of the simulation the driver has not looked at yet
@@ -116,25 +107,18 @@ export function activeIssues(now: number): Issue[] {
     });
   }
 
+  // looking at none of the 8 regions (up or down) for 1 s - decided by the driver monitor
   const distracted = det("DISTRACTED");
-  const away = awaySince !== null && now - awaySince >= AWAY_MS && gaze?.status === "ok" && gaze.region === "away";
-  if (distracted || away) {
-    const down = distracted?.details.reason === "LOOKING_DOWN";
+  if (distracted) {
+    const where = distracted.details.zone === "DOWN" ? "down" : distracted.details.zone === "UP" ? "up" : "away";
     out.push({
-      key: "eyes-on-road", priority: 70, level: distracted?.severity === "DANGER" ? "danger" : "warn", icon: "eye",
-      title: "Eyes on the road",
-      detail: down ? "You are looking down" : "You are not looking at the road or the mirrors",
+      key: "eyes-on-road", priority: 70, level: distracted.severity === "DANGER" ? "danger" : "warn", icon: "eye",
+      title: "Eyes on the road", detail: `You are looking ${where}`,
     });
   }
 
   if (fresh) {
-    const lvl = fresh.drowsiness.level_index;
-    if (lvl >= 3) {
-      out.push({ key: "tired-3", priority: 60, level: "danger", icon: "coffee", title: "Take a break now", detail: "You are very tired" });
-    } else if (lvl >= 1 || det("TIRED_EYES") || det("EYES_NARROWED") || det("YAWN")) {
-      out.push({ key: "tired-1", priority: 50, level: "warn", icon: "coffee", title: "You seem tired", detail: "Plan a break soon" });
-    }
-    if (det("FACE_NOT_VISIBLE")) {
+    if (noFaceSince !== null && now - noFaceSince >= NO_FACE_MS) {
       out.push({ key: "face", priority: 40, level: "warn", icon: "face", title: "The camera can't see you", detail: "Face the road, keep your face visible" });
     }
     if (fresh.calibration.status === "CALIBRATING") {

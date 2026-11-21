@@ -1,20 +1,32 @@
 # driver_monitor
 
-Camera-based driver monitoring for the Half A Byte hackathon project. It watches the driver through a webcam using
-MediaPipe Face Landmarker and reports eye closure, microsleep, drowsiness, yawns, head nods and drops, gaze direction
-and distraction as a stateful JSON message (`driver_state`) for every frame.
+Camera-based driver monitoring for the Half A Byte hackathon project. It watches the driver through a webcam
+(MediaPipe) and sends one JSON message (`driver_state`) per frame with exactly three things:
 
-- What it detects, how, which classes/files, the JSON format and many examples: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
-- The `driver_state` JSON field by field (for the simulator / consumers): [docs/detection-schema.md](docs/detection-schema.md),
-  machine-readable JSON Schema: [docs/driver_state.schema.json](docs/driver_state.schema.json)
+| What | How | In the message |
+|---|---|---|
+| **Where the driver looks** | head pose + iris position → a zone: road, the three mirrors, the side windows, up, down | `gaze.zone` (the server turns it into the simulator's 8 regions); `DISTRACTED` when it is up / down (none of the 8) for 1 s |
+| **Eyes closed** | eye openness against the driver's own open / closed eye (calibration) | `eyes.state`; `EYES_CLOSED` from 0.5 s, `DANGER` from 1 s |
+| **Phone in the hand** | MediaPipe Object Detector (EfficientDet-Lite0, "cell phone") in the background | `PHONE_USE` |
+
+- The `driver_state` JSON field by field: [docs/detection-schema.md](docs/detection-schema.md), machine-readable
+  JSON Schema: [docs/driver_state.schema.json](docs/driver_state.schema.json)
 - Scripted scenarios without a camera: `uv run python tools/scenarios.py --list`
+
+| Folder | What is in it |
+|---|---|
+| `perception/` | MediaPipe: face landmarks (`face_tracker.py`), per-frame features (`features.py`), the phone finder |
+| `calibration/` | the first ~9 s: straight-ahead look, open and closed eye of this driver |
+| `signals/` | head pose, eye openness and state, gaze angles and zone |
+| `detectors/` | `eye_closure.py`, `distraction.py`, `phone.py` (episodes: `base.py`) |
+| `output/` | the JSON model (`schema.py`), terminal, preview overlay, WebSocket sender, MJPEG stream |
 
 ## Quick start (Windows)
 
 ```powershell
 cd driver_monitor
 uv sync                                   # creates .venv with all dependencies
-uv run python tools/download_model.py     # downloads models/face_landmarker.task (~3.7 MB)
+uv run python tools/download_model.py     # downloads the face and the phone model into models/
 uv run python -m driver_monitor           # opens the camera window and prints detections
 ```
 
@@ -29,10 +41,9 @@ uv run python tools/ws_receiver.py          # listens on ws://localhost:8765, pr
 uv run python tools/ws_receiver.py --full   # prints every JSON message
 ```
 
-A mobile phone in the hand is detected too (`PHONE_USE`): MediaPipe Object Detector with EfficientDet-Lite0
-(`models/efficientdet_lite0.tflite`, downloaded by `tools/download_model.py` with the face model; settings: `phone`
-in the config). It runs in the background ~6 times per second and never slows down the face pipeline; without the
-model file it is switched off with a message. The preview draws a box around the phone.
+The phone detector (`models/efficientdet_lite0.tflite`, settings: `phone` in the config) runs in the background
+~6 times per second and never slows down the face pipeline; without the model file it is switched off with a
+message. It needs no calibration, so it works from the first frame. The preview draws a box around the phone.
 
 It also serves the preview window's image (with all the markings) as an MJPEG stream for the dashboard, at
 `http://localhost:8090/stream.mjpg` (`camera_stream` in the config, `--no-stream` turns it off). A frame is only
@@ -65,7 +76,3 @@ uv run pytest
 uv run ruff check .
 uv run mypy
 ```
-
-`tests/test_recordings.py` replays real webcam recordings from `recordings/` (git-ignored); cache a new
-one with `uv run python tools/cache_recording.py recordings/clip.mp4` (`--screen` for a screen capture of
-the preview window). See docs/IMPLEMENTATION.md section 12.

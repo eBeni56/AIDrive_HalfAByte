@@ -101,12 +101,10 @@ function statsTable(s: AttentionSummary): StatRow[] {
       tone: "danger" as const,
     })),
     { label: "Average reaction", value: s.avg_reaction_s == null ? "–" : seconds(s.avg_reaction_s) },
-    { label: "Yawns", value: String(count("YAWN")), tone: count("YAWN") ? "warn" : undefined },
     { label: "Eye closures", value: String(count("EYES_CLOSED")), tone: count("EYES_CLOSED") ? "warn" : undefined },
-    { label: "Distractions", value: String(count("DISTRACTED")), tone: count("DISTRACTED") ? "warn" : undefined },
+    { label: "Looked up / down", value: String(count("DISTRACTED")), tone: count("DISTRACTED") ? "warn" : undefined },
     { label: "Phone in hand", value: String(count("PHONE_USE")), tone: count("PHONE_USE") ? "danger" : undefined },
   );
-  if (count("MICROSLEEP")) rows.push({ label: "Microsleeps", value: String(count("MICROSLEEP")), tone: "danger" });
   return rows;
 }
 

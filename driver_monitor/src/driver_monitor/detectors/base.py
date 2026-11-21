@@ -93,23 +93,6 @@ class EpisodeTracker:
         self.active = None
         return a
 
-    def instant(
-        self, started_t: float, ended_t: float, severity: Severity, details: dict[str, Any]
-    ) -> Detection:
-        """An event only known once it is over (e.g. a head nod): published once, as ENDED."""
-        d = Detection(
-            self._new_id(),
-            self.dtype,
-            severity,
-            DetectionStatus.ENDED,
-            started_t,
-            ended_t,
-            ended_t - started_t,
-            dict(details),
-        )
-        self._finished.append(d)
-        return d
-
     def emit(self) -> list[Detection]:
         out = [copy.deepcopy(d) for d in self._finished]
         self._finished.clear()

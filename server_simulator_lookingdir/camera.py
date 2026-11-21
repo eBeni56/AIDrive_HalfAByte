@@ -5,7 +5,7 @@ The camera client sends one large JSON ~30x/s. We only read:
   gaze.pitch_deg        0 = straight, POSITIVE = UP, negative = down (or null)
   gaze.zone             ROAD, REAR_MIRROR, LEFT_MIRROR, RIGHT_MIRROR, LEFT_SIDE, RIGHT_SIDE, UP, DOWN,
                         UNKNOWN (the camera client decides this from its own mirror/road settings)
-  eyes.state            OPEN, ALMOST_CLOSED, CLOSED, UNKNOWN
+  eyes.state            OPEN, CLOSED, UNKNOWN
   quality.face_detected true / false
   calibration.status    CALIBRATING, DONE, DEFAULTS
 Any field may be missing or null: that just means "no data", never an error.
