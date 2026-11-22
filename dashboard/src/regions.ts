@@ -1,4 +1,4 @@
-// The 8 regions around the car (the server's zones and gaze regions) in words, for the Simulation log
+// The 8 zones around the car and the gaze regions (the 3 front zones share the gaze region "front") in words, for the Simulation log
 // (narrator.ts) and the driver display (hud.ts). "away" (none of them) is handled where it is used.
 
 export type Arrow = "left" | "right" | "ahead" | "behind" | "behind-left" | "behind-right";
@@ -13,6 +13,11 @@ interface Region {
 }
 
 export const REGIONS: Record<string, Region> = {
+  // gaze region only (never a zone): looking at the road = the whole windshield, every front_* zone counts
+  front: {
+    zone: "zone ahead", short: "ahead", look: "the road ahead",
+    title: "Watch ahead", place: "ahead of you", arrow: "ahead",
+  },
   front_left: {
     zone: "front-left zone", short: "front-left", look: "the road, front left",
     title: "Watch ahead left", place: "ahead on the left", arrow: "left",

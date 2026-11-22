@@ -49,7 +49,7 @@ project needs and nothing else: **where the driver looks** (`gaze.zone`), **whet
 
 | `gaze.zone` | Simulator region (server) | |
 |---|---|---|
-| `ROAD` | `front_left` / `front_center` / `front_right` (split by `gaze.yaw_deg`) | fine |
+| `ROAD` | `front` (the whole windshield) | fine |
 | `LEFT_MIRROR`, `REAR_MIRROR`, `RIGHT_MIRROR` | `mirror_left`, `mirror_center`, `mirror_right` | fine |
 | `LEFT_SIDE`, `RIGHT_SIDE` | `side_left`, `side_right` (head turned far: side window / blind spot) | fine |
 | `UP`, `DOWN` | `away` | none of the 8 regions → `DISTRACTED` after 1 s |
@@ -57,9 +57,9 @@ project needs and nothing else: **where the driver looks** (`gaze.zone`), **whet
 
 The mirror boxes are in `gaze_zones` in the config. The defaults are for the simulator in full screen. From the
 middle outwards, per side:
-* the road (|yaw| ≤ 20°): `ROAD` (the server splits it into front-left / centre / front-right);
-* the side mirror: yaw 20°…55° at any height (lower screen corner up to eye level);
-* the side window: beyond 55° (`LEFT_SIDE` / `RIGHT_SIDE`);
+* the road (|yaw| ≤ 20°): `ROAD` (the server's `front`: the whole windshield);
+* the side mirror: yaw 20°…60° up to pitch +30° (leftish / rightish, a head turned ~45° included);
+* beyond 60° (`LEFT_SIDE` / `RIGHT_SIDE`): head turned fully to the side (no rectangle in the simulator);
 * the rear-view mirror is the top centre; looking down in the middle is `DOWN`.
 
 The road box is set by `gaze.on_road_*`.

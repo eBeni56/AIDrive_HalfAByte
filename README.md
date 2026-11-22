@@ -167,7 +167,7 @@ Every WebSocket message is one JSON object, all on one port (8765). The exact fi
 ## Settings
 
 * [.env](.env): the ports on this PC (`SERVER_PORT`, `SIMULATOR_PORT`, `DASHBOARD_PORT`), the server settings
-  (`SERVER_LOG_LEVEL`, `GAZE_HZ`, `DASHBOARD_HZ`, `CAMERA_TIMEOUT_S`, `FRONT_SPLIT_DEG`) and the replayed video
+  (`SERVER_LOG_LEVEL`, `GAZE_HZ`, `DASHBOARD_HZ`, `CAMERA_TIMEOUT_S`) and the replayed video
   (`DM_VIDEO`). docker compose reads it by itself; `start.bat` takes the two page ports from it.
 * The driver monitor: [driver_monitor/config/driver_monitor.yaml](driver_monitor/config/driver_monitor.yaml)
   (server address, camera stream); where the mirrors are: `gaze_zones` (see its README).

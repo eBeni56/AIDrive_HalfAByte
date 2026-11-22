@@ -37,7 +37,8 @@ finished) arriving in the chat, until the next simulation starts. Before the fir
 "No simulation running". The camera image is shown all the time.
 
 **The driver display**, the highest first: eyes closed ("Wake up! Open your eyes") · an object the driver has
-not looked at yet ("Look right: a truck is in your right blind spot", with a direction arrow) · phone in the
+not looked at yet ("Look right: a truck is in your right blind spot", with a direction arrow; not shown when the
+driver already looks there, and gone at once when the driver looks) · phone in the
 hand ("Put down your phone") · looking up or down for 1 s ("Eyes on the road") · no face in the camera for 1 s ·
 calibrating · no camera / no server · otherwise "All good". A message stays at least 3 s; only a more important
 one replaces it sooner.

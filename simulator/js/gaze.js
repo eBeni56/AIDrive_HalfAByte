@@ -29,8 +29,9 @@ function handleGazeMessage(data) {
 
 // ------------------------------ REGION GEOMETRY --------------------------------------
 // The ONE place that maps a region name to a screen shape. Returns a polygon [[x, y], ...] in CSS px
-// built from the same geometry the cockpit is drawn with (pillarGeom, mirrorRects), or null for
-// "away" / unknown.
+// built from the same geometry the cockpit is drawn with (pillarGeom, mirrorRects), or null (no rectangle)
+// for side_left / side_right (head turned fully to the side), "away" and unknown. Only 4 rectangles: the
+// windshield and the 3 mirrors.
 function gazeRegionShape(region, W, H) {
   const rect = r => [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]];
   if (region.startsWith("mirror_")) {
@@ -42,13 +43,9 @@ function gazeRegionShape(region, W, H) {
   // x of a pillar edge at height y (the edges are straight lines from the bottom to the roof)
   const at_ = (b, t, y) => b + (t - b) * (P.yb - y) / P.yb;
   const inner = (s, y) => at_(P[s].innerB, P[s].innerT, y);   // windshield side of the bar
-  const outer = (s, y) => at_(P[s].outerB, P[s].outerT, y);   // side-window side of the bar
-  if (region === "side_left")  return [[0, 0], [outer("left", 0), 0], [outer("left", P.yb), P.yb], [0, P.yb]];
-  if (region === "side_right") return [[W, 0], [outer("right", 0), 0], [outer("right", P.yb), P.yb], [W, P.yb]];
-  const i = { front_left: 0, front_center: 1, front_right: 2 }[region];
-  if (i === undefined) return null;
-  const at = (y, k) => { const l = inner("left", y), r = inner("right", y); return l + (r - l) * k / 3; };
-  return [[at(yTop, i), yTop], [at(yTop, i + 1), yTop], [at(yBot, i + 1), yBot], [at(yBot, i), yBot]];
+  if (region !== "front") return null;              // the whole windshield, pillar to pillar
+  return [[inner("left", yTop), yTop], [inner("right", yTop), yTop],
+          [inner("right", yBot), yBot], [inner("left", yBot), yBot]];
 }
 
 // ------------------------------ CANVAS HIGHLIGHT -------------------------------------

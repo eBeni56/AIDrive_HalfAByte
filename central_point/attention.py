@@ -3,7 +3,7 @@
 Every object is in one of 8 zones (or in none). When it enters a zone AND needs a look there, that
 zone's timer starts (WINDOW_S). If the gaze region stays in ACCEPTED_LOOKS[zone] for LOOK_DWELL_S
 before the timer runs out, the object is "noticed", otherwise "missed". A zone's name is also where
-to look.
+to look (the front_* zones: anywhere through the windshield, gaze region "front").
 
 Needs a look (needs_look): always in a blind spot (side_*) and in our lane ahead (front_center);
 anywhere else only while it is getting closer to the car or to our lane (CLOSING_M within the last
@@ -18,7 +18,8 @@ and returns the messages to send (dicts); server.py sends them to the dashboard.
 attention_event kinds: appeared (an object is seen for the first time in this run), zone_change (it
 moved into another zone), noticed (looked at in time; reaction_s), missed (not looked at in time).
 window_s is null when there is no timer: outside every zone, or the object does not need a look
-(needs_look false). distance_m: meters from the ego car's center.
+(needs_look false). distance_m: meters from the ego car's center. looking: the driver's gaze is already in an
+accepted region for it (the dashboard then shows no "look there" message: nothing to warn about).
 
   start(now)                       simulation_started: forget everything
   on_tick(now, objects, region)    simulation_tick: zone changes (objects need object_id, type,
@@ -83,8 +84,15 @@ WINDOW_S = {
     "mirror_left": 2.0, "mirror_center": 2.0, "mirror_right": 2.0,
 }
 
-# zone -> gaze regions that count as looking at it (default: only its own name).
-ACCEPTED_LOOKS = {zone: {zone} for zone in ZONES}
+# zone -> gaze regions that count as looking at it. The simulator shows 4 regions: the windshield ("front"), the
+# left / right mirror (looking leftish / rightish) and the rear-view mirror (a bit up). The front zones are all
+# seen through the windshield. A road user beside us (blind spot, side_*) is checked by looking leftish /
+# rightish (the mirror) or by turning the head fully (side_*); the mirror zones behind us need the mirror.
+ACCEPTED_LOOKS = {
+    "front_left": {"front"}, "front_center": {"front"}, "front_right": {"front"},
+    "side_left": {"mirror_left", "side_left"}, "side_right": {"mirror_right", "side_right"},
+    "mirror_left": {"mirror_left"}, "mirror_center": {"mirror_center"}, "mirror_right": {"mirror_right"},
+}
 
 # A look counts only after the gaze stays in an accepted region this long (a sweep doesn't).
 LOOK_DWELL_S = 0.15
@@ -278,7 +286,7 @@ class Attention:
               "t_s": round(at - self.started_at, 2), "kind": kind,
               "object_id": t.object_id, "type": t.type, "zone": t.zone,
               "window_s": WINDOW_S[t.zone] if t.deadline is not None else None,
-              "reaction_s": reaction_s, "distance_m": dist}
+              "reaction_s": reaction_s, "distance_m": dist, "looking": t.look_since is not None}
         head = f"{ev['t_s']:.2f} s {t.object_id} {t.type}"
         if kind in ("appeared", "zone_change"):
             where = "no zone"

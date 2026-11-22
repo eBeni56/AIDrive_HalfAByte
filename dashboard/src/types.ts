@@ -41,6 +41,7 @@ export interface AttentionEvent {
   window_s: number | null; // seconds the driver has to look after the object entered the zone; null: no need
   // to look (no zone, or moving away from the car)
   reaction_s: number | null; // only for "noticed"
+  looking?: boolean; // the driver already looks where it is (an accepted gaze region): nothing to warn about
 }
 
 export interface AttentionSummary {

@@ -21,7 +21,6 @@ services:
       GAZE_HZ: ${GAZE_HZ:-10}
       DASHBOARD_HZ: ${DASHBOARD_HZ:-10}
       CAMERA_TIMEOUT_S: ${CAMERA_TIMEOUT_S:-1.0}
-      FRONT_SPLIT_DEG: ${FRONT_SPLIT_DEG:-7}
     ports:
       - "${SERVER_PORT:-8765}:8765"
 

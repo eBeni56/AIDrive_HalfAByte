@@ -140,9 +140,12 @@ class GazeZonesConfig(_Section):
     straight-ahead look recorded during calibration. A mirror box is checked before the road box.
 
     Defaults: a driving SIMULATOR in full screen. Looking from the middle outwards, per side:
-      the road (|yaw| <= gaze.on_road_yaw_deg = 20 deg)   -> front_left / front_right, unchanged
-      the SIDE MIRROR, yaw 20..55 deg, at any height      -> from the screen's lower corners up to eye level
-      the side window, beyond 55 deg                      -> LEFT_SIDE / RIGHT_SIDE (a shoulder check)
+      the road (|yaw| <= gaze.on_road_yaw_deg = 20 deg)   -> ROAD (the whole windshield)
+      the SIDE MIRROR, yaw 20..60 deg, pitch up to +30    -> looking "leftish" / "rightish", head turned up to
+                                                             ~45 deg and more, at any height (a wide band: the
+                                                             measured angles vary a lot)
+      beyond 60 deg                                       -> LEFT_SIDE / RIGHT_SIDE: head turned fully to the
+                                                             side (~90 deg), not a mirror
     The side mirror is a wide band, not a small box: a look at the screen edge is mostly done with the eyes
     and the measured angles vary a lot (eyeLookDown alone is -30..-50 deg), so it must not depend on how low
     or how far out exactly the driver looks. The rear-view mirror is the top centre.
@@ -158,12 +161,12 @@ class GazeZonesConfig(_Section):
     )
     left_mirror: ZoneBox = Field(
         default_factory=lambda: ZoneBox(
-            yaw_min_deg=-55.0, yaw_max_deg=-20.0, pitch_min_deg=-90.0, pitch_max_deg=15.0
+            yaw_min_deg=-60.0, yaw_max_deg=-20.0, pitch_min_deg=-90.0, pitch_max_deg=30.0
         )
     )
     right_mirror: ZoneBox = Field(
         default_factory=lambda: ZoneBox(
-            yaw_min_deg=20.0, yaw_max_deg=55.0, pitch_min_deg=-90.0, pitch_max_deg=15.0
+            yaw_min_deg=20.0, yaw_max_deg=60.0, pitch_min_deg=-90.0, pitch_max_deg=30.0
         )
     )
     hysteresis_deg: float = 3.0  # a zone (mirror, road, down) is kept until the gaze is this far outside its box

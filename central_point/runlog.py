@@ -29,7 +29,7 @@ MIRROR_LOOK_S = 0.15      # a mirror look at least this long counts as a mirror 
 HALVES_MIN_S = 120.0      # mirror checks per half only for drives at least this long
 DETECTION_TYPES = ("EYES_CLOSED", "PHONE_USE", "DISTRACTED")
 
-REGION_LABEL = {"front_center": "road", "front_left": "road (front left)", "front_right": "road (front right)",
+REGION_LABEL = {"front": "road",
                 "mirror_left": "left mirror", "mirror_center": "rear mirror", "mirror_right": "right mirror",
                 "side_left": "left side window", "side_right": "right side window", "away": "looking away"}
 MIRRORS = ("left mirror", "rear mirror", "right mirror")

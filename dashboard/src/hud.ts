@@ -33,6 +33,7 @@ let driverAt = 0;
 let connected = false;
 let running = false; // a simulation runs (simulation_started .. simulation_ended)
 let noFaceSince: number | null = null;
+let noticedAt = 0; // when the driver last looked at a road user in time (its "look there" message goes at once)
 // simulator objects the driver still has to look at: object_id -> what, where, until when
 const pending = new Map<string, { type: string; zone: string; until: number }>();
 
@@ -60,10 +61,12 @@ export const hudInput = {
     }
     if (msg.event !== "attention_event") return;
     const e = msg as AttentionEvent;
-    if ((e.kind === "appeared" || e.kind === "zone_change") && e.zone && e.window_s != null) {
+    // a road user to look at - unless the driver already looks there (checked: no message at all)
+    if ((e.kind === "appeared" || e.kind === "zone_change") && e.zone && e.window_s != null && !e.looking) {
       pending.set(e.object_id, { type: e.type, zone: e.zone, until: Date.now() + e.window_s * 1000 + 500 });
     } else {
-      pending.delete(e.object_id); // noticed, missed, or out of every zone
+      if (e.kind === "noticed" && pending.has(e.object_id)) noticedAt = Date.now();
+      pending.delete(e.object_id); // noticed, missed, already looked at, or out of every zone
     }
   },
 };
@@ -167,6 +170,8 @@ export function pick(now: number): Issue {
     return shown;
   }
   if (top.priority > shown.priority || now - shownAt >= HOLD_MS) return show(top, now);
+  // a "look there" message whose road user was just looked at: gone at once, no HOLD_MS (it was checked)
+  if (shown.icon === "obstacle" && noticedAt >= shownAt) return show(top, now);
   return shown; // over, but shown for less than HOLD_MS: keep it a little longer
 }
 

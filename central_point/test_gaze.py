@@ -20,18 +20,14 @@ class RegionTest(unittest.TestCase):
         for zone, region in [("REAR_MIRROR", "mirror_center"), ("LEFT_MIRROR", "mirror_left"),
                              ("RIGHT_MIRROR", "mirror_right"), ("LEFT_SIDE", "side_left"),
                              ("RIGHT_SIDE", "side_right")]:
-            self.assertEqual(camera.region(zone, 0.0, 7), region)
+            self.assertEqual(camera.region(zone), region)
 
-    def test_road_is_split_by_yaw(self):
-        self.assertEqual(camera.region("ROAD", -15.0, 7), "front_left")
-        self.assertEqual(camera.region("ROAD", -7.0, 7), "front_center")
-        self.assertEqual(camera.region("ROAD", 3.0, 7), "front_center")
-        self.assertEqual(camera.region("ROAD", 12.0, 7), "front_right")
-        self.assertEqual(camera.region("ROAD", None, 7), "front_center")
+    def test_road_is_the_whole_front(self):
+        self.assertEqual(camera.region("ROAD"), "front")
 
     def test_everything_else_is_away(self):
         for zone in ["UP", "DOWN", "UNKNOWN", None, "SOMETHING_NEW", 5]:
-            self.assertEqual(camera.region(zone, 0.0, 7), "away")
+            self.assertEqual(camera.region(zone), "away")
 
 
 class DecideGazeTest(unittest.TestCase):
@@ -52,14 +48,14 @@ class DecideGazeTest(unittest.TestCase):
 
     def test_region_from_camera(self):
         self.assertEqual(self.decide(driver_state("LEFT_MIRROR", -25.0)), ("ok", "mirror_left"))
-        self.assertEqual(self.decide(driver_state("ROAD", 14.0)), ("ok", "front_right"))
+        self.assertEqual(self.decide(driver_state("ROAD", 14.0)), ("ok", "front"))
         self.assertEqual(self.decide(driver_state("DOWN", 0.0)), ("ok", "away"))
 
     def test_statuses_win_over_the_region(self):
         self.assertEqual(self.decide(driver_state(face=False)), ("no_face", None))
         self.assertEqual(self.decide(driver_state(eyes="CLOSED")), ("eyes_closed", None))
         self.assertEqual(self.decide(driver_state(calib="CALIBRATING")), ("calibrating", None))
-        self.assertEqual(self.decide(driver_state(eyes="SOMETHING_NEW")), ("ok", "front_center"))
+        self.assertEqual(self.decide(driver_state(eyes="SOMETHING_NEW")), ("ok", "front"))
 
     def test_missing_fields_are_no_data(self):
         self.assertEqual(self.decide({"type": "driver_state"}), ("ok", "away"))

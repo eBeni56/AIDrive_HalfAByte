@@ -24,7 +24,7 @@ Outside a run (before GO, after simulation_ended) nothing new is sent but the en
 was already being written): no gaze_update, no driver_state, no warnings, no new tips.
 
 Environment variables: HOST (default localhost; 0.0.0.0 in Docker), PORT (8765), GAZE_HZ (10), DASHBOARD_HZ (10),
-CAMERA_TIMEOUT_S (1.0), FRONT_SPLIT_DEG (7), EYES_CLOSED_VOICE_S / EYES_CLOSED_REPEAT_S / ATTENTION_REPEAT_S
+CAMERA_TIMEOUT_S (1.0), EYES_CLOSED_VOICE_S / EYES_CLOSED_REPEAT_S / ATTENTION_REPEAT_S
 (alerts.py), LOG_LEVEL (INFO prints every simulator message, warning, coach request / result and every CHANGE of
 the gaze_update sent; DEBUG also every gaze_update and every camera message).
 """
@@ -49,7 +49,6 @@ PORT = int(os.environ.get("PORT", "8765"))
 GAZE_HZ = float(os.environ.get("GAZE_HZ", "10"))                    # gaze_update messages per second
 DASHBOARD_HZ = float(os.environ.get("DASHBOARD_HZ", "10"))          # driver_state to the dashboard per second
 CAMERA_TIMEOUT_S = float(os.environ.get("CAMERA_TIMEOUT_S", "1.0"))  # older camera data = no camera
-FRONT_SPLIT_DEG = float(os.environ.get("FRONT_SPLIT_DEG", "7"))      # |yaw| beyond this: front_left/right
 TICK_HZ = 20                                                         # look deadlines, warnings, coach
 
 log = logging.getLogger("server")
@@ -203,7 +202,7 @@ def decide_gaze(now=None):
         return "eyes_closed", None
     if d.calibration == "CALIBRATING":
         return "calibrating", None
-    return "ok", camera.region(d.zone, d.yaw_deg, FRONT_SPLIT_DEG)
+    return "ok", camera.region(d.zone)
 
 
 def current_region(now=None):

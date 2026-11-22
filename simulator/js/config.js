@@ -60,10 +60,11 @@ const TICK_HZ = 10;               // simulation_tick rate (independent of the re
 
 // ------------------------------ GAZE DISPLAY (gaze_update from the server) -----------
 const GAZE_TIMEOUT_MS = 1500;     // no message for this long -> highlight removed
-const GAZE_REGIONS = ["front_left", "front_center", "front_right", "side_left", "side_right",
-                      "mirror_center", "mirror_left", "mirror_right", "away"];
+// 4 of them get a rectangle: front (the whole windshield), mirror_left / mirror_right (looking leftish /
+// rightish) and mirror_center (a bit up). side_left / side_right (head turned fully) and away get none.
+const GAZE_REGIONS = ["front", "side_left", "side_right", "mirror_center", "mirror_left", "mirror_right", "away"];
 const GAZE_REGION_LABEL = {
-  front_left: "FRONT LEFT", front_center: "FRONT CENTER", front_right: "FRONT RIGHT",
+  front: "FRONT",
   side_left: "LEFT SIDE WINDOW", side_right: "RIGHT SIDE WINDOW",
   mirror_center: "REAR-VIEW MIRROR", mirror_left: "LEFT MIRROR", mirror_right: "RIGHT MIRROR",
   away: "AWAY",

@@ -101,7 +101,7 @@ broken:
 | `quality.face_detected: false` | `no_face` | `null` |
 | `eyes.state: CLOSED` and `gaze.zone` `UNKNOWN` or missing (closed longer than a blink) | `eyes_closed` | `null` |
 | `calibration.status: CALIBRATING` | `calibrating` | `null` |
-| `ROAD`, yaw < −7° / within ±7° / > +7° (`FRONT_SPLIT_DEG`) | `ok` | `front_left` / `front_center` / `front_right` |
+| `ROAD` | `ok` | `front` (the whole windshield) |
 | `LEFT_MIRROR` / `REAR_MIRROR` / `RIGHT_MIRROR` | `ok` | `mirror_left` / `mirror_center` / `mirror_right` |
 | `LEFT_SIDE` / `RIGHT_SIDE` | `ok` | `side_left` / `side_right` |
 | `UP`, `DOWN`, `UNKNOWN` or missing | `ok` | `away` |
@@ -132,10 +132,21 @@ its chat lines and a tip still being finished; the driver monitor keeps streamin
 ## Attention: did the driver look in time?
 
 Every object of each tick is in one of 8 zones around the ego car, or in none. When an object enters a zone **and
-needs a look there**, the driver has that zone's window to look there: the gaze region (status `ok` only) must equal
-the zone's name for 0.15 s (`LOOK_DWELL_S`) before the window runs out. Looking already when it enters counts from
+needs a look there**, the driver has that zone's window to look there: the gaze region (status `ok` only) must be
+one that sees it for 0.15 s (`LOOK_DWELL_S`) before the window runs out. Looking already when it enters counts from
 the entry. A new zone starts a new window (a running one is dropped). It is checked on every tick and 20 times per
-second.
+second. The gaze regions that see each zone (`ACCEPTED_LOOKS`):
+
+| Zone | Seen by the gaze region |
+|---|---|
+| `front_left` / `front_center` / `front_right` | `front` (looking ahead: the whole windshield) |
+| `side_left` / `side_right` (blind spot) | `mirror_left` / `mirror_right` (looking leftish / rightish) or `side_left` / `side_right` (head turned fully) |
+| `mirror_left` / `mirror_center` / `mirror_right` | the same mirror |
+
+Every attention event has `looking`: true when the gaze already is in such a region (for `appeared` /
+`zone_change`: the driver looks there as it arrives). The dashboard then shows no "look there" message, and as the
+look is complete after 0.15 s it is `noticed`: no warning, no voice. Only a road user that was not looked at in
+time is `missed` and warned about.
 
 **Needs a look**: always in a blind spot (`side_*`) and in our lane ahead (`front_center`); in every other zone only
 while it is getting closer, to the car or sideways to our lane (by at least 0.1 m over the last 0.4 s of ticks).
@@ -245,7 +256,6 @@ python -m venv .venv
 | `GAZE_HZ` | `10` | `gaze_update` messages per second |
 | `DASHBOARD_HZ` | `10` | `driver_state` messages per second to the dashboard (the camera sends ~30) |
 | `CAMERA_TIMEOUT_S` | `1.0` | no `driver_state` for this long: `no_gaze_client` |
-| `FRONT_SPLIT_DEG` | `7` | looking at the road, \|yaw\| beyond this: `front_left` / `front_right` |
 | `EYES_CLOSED_VOICE_S` | `1.0` | eyes closed this long: the first eyes-closed warning |
 | `EYES_CLOSED_REPEAT_S` | `3.0` | ... repeated this often while they stay closed |
 | `ATTENTION_REPEAT_S` | `5.0` | phone / looking away warning repeated this often while it lasts |

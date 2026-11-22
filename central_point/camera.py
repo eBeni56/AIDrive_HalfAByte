@@ -1,7 +1,7 @@
 """Input from the DRIVER CAMERA client: pick out the fields we need from driver_state.
 
 The camera client sends one large JSON ~30x/s. We only read:
-  gaze.yaw_deg          0 = straight ahead, NEGATIVE = LEFT, positive = right (or null): splits ROAD
+  gaze.yaw_deg          0 = straight ahead, NEGATIVE = LEFT, positive = right (or null): logged only
   gaze.zone             ROAD, REAR_MIRROR, LEFT_MIRROR, RIGHT_MIRROR, LEFT_SIDE, RIGHT_SIDE, UP, DOWN,
                         UNKNOWN (the camera client decides this from its own mirror/road settings)
   eyes.state            OPEN, CLOSED, UNKNOWN
@@ -15,8 +15,9 @@ import time
 
 log = logging.getLogger("camera")
 
-# gaze.zone -> simulator region. ROAD is split into front_left / front_center / front_right by yaw.
+# gaze.zone -> simulator region. ROAD is the whole windshield ("front"): looking ahead sees everything ahead.
 ZONE_TO_REGION = {
+    "ROAD": "front",
     "REAR_MIRROR": "mirror_center",
     "LEFT_MIRROR": "mirror_left",
     "RIGHT_MIRROR": "mirror_right",
@@ -50,14 +51,9 @@ def _angle(v):
     return float(v)
 
 
-def region(zone, yaw_deg, front_split_deg):
-    """Simulator region for a camera gaze zone. Looking at the road: front_left / front_center /
-    front_right, split at -front_split_deg / +front_split_deg of yaw (front_center if yaw is unknown).
-    UP, DOWN, UNKNOWN and anything unexpected: "away"."""
-    if zone == "ROAD":
-        if yaw_deg is None or abs(yaw_deg) <= front_split_deg:
-            return "front_center"
-        return "front_left" if yaw_deg < 0 else "front_right"
+def region(zone):
+    """Simulator region for a camera gaze zone: ROAD -> front (the whole windshield), the mirrors and side
+    windows by name. UP, DOWN, UNKNOWN and anything unexpected: "away"."""
     return ZONE_TO_REGION.get(zone, "away")
 
 

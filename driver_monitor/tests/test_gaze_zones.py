@@ -24,8 +24,10 @@ def zone(yaw: float, pitch: float) -> GazeZone:
         (-25, -10),  # just outside the road, lower left
         (-30, 0),  # eye level
         (-28, 12),  # a bit higher
-        (-40, -35),  # deep into the lower left corner (the eyes do most of it)
-        (-54, -5),  # far out, still the mirror
+        (-33, -35),  # deep into the lower left corner (the eyes do most of it)
+        (-43, 18),  # head turned ~45 deg and a bit up (a real look at the mirror)
+        (-45, 0),
+        (-58, -5),  # far out, still the mirror
         (-22, -60),
     ],
 )
@@ -34,7 +36,7 @@ def test_the_band_between_road_and_side_window_is_the_side_mirror(yaw: float, pi
     assert zone(-yaw, pitch) is GazeZone.RIGHT_MIRROR
 
 
-@pytest.mark.parametrize(("yaw", "pitch"), [(-60, 0), (-75, -5), (-58, 10)])
+@pytest.mark.parametrize(("yaw", "pitch"), [(-65, 0), (-75, -5), (-90, 10)])
 def test_far_turned_head_is_the_side_window(yaw: float, pitch: float) -> None:
     assert zone(yaw, pitch) is GazeZone.LEFT_SIDE
     assert zone(-yaw, pitch) is GazeZone.RIGHT_SIDE

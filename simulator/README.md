@@ -94,9 +94,10 @@ forgotten, so an old one is never shown:
 
 There is no gaze badge: the camera's state is on the dashboard.
 
-The regions on the screen: `front_left`, `front_center`, `front_right` (thirds of the windshield), `side_left`,
-`side_right` (the side-window glass outside the A-pillars), `mirror_center`, `mirror_left`, `mirror_right` (the
-mirror glass) and `away` (none of them: an "AWAY" label).
+Four rectangles on the screen: `front` (the whole windshield: looking ahead sees everything ahead),
+`mirror_left`, `mirror_right` (looking leftish / rightish, head turned up to ~45° and more) and `mirror_center`
+(head raised a bit). `side_left` / `side_right` (head turned fully to the side) draw nothing; `away` (none of them)
+shows an "AWAY" label.
 
 ## Console (F12)
 

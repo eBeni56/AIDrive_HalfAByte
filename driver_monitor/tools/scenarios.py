@@ -194,14 +194,14 @@ SCENARIOS: list[Scenario] = [
     Scenario(
         "look_side",
         "Looking out of the left side window for 3 s: head turned far (zone LEFT_SIDE, no detection)",
-        Script().hold(1.0).ramp(0.2, yaw=-62.0).hold(3.0),
+        Script().hold(1.0).ramp(0.2, yaw=-75.0).hold(3.0),
         [("3 s to the side", at(4.1))],
     ),
     Scenario(
         "shoulder_right",
-        "Head turned 65 deg right: eyes not measurable, the gaze uses the head alone (RIGHT_SIDE)",
-        Script().hold(1.0).ramp(0.3, yaw=65.0).hold(1.2),
-        [("head at 65 deg", at(2.4))],
+        "Head turned 75 deg right: eyes not measurable, the gaze uses the head alone (RIGHT_SIDE)",
+        Script().hold(1.0).ramp(0.3, yaw=75.0).hold(1.2),
+        [("head at 75 deg", at(2.4))],
     ),
     Scenario(
         "face_lost",

@@ -97,9 +97,9 @@ the calibrated straight-ahead look, yaw − left / + right, pitch − down / + u
 
 | Zone | Where |
 |---|---|
-| `ROAD` | \|yaw\| ≤ 20, pitch −15 … +15 (the server splits it into front left / centre / right) |
-| `LEFT_MIRROR`, `RIGHT_MIRROR` | yaw 20 … 55, at any height up to +15 (from the lower screen corners up to eye level) |
-| `LEFT_SIDE`, `RIGHT_SIDE` | yaw beyond 55: the side window, a shoulder check |
+| `ROAD` | \|yaw\| ≤ 20, pitch −15 … +15 (the whole windshield: the server's `front`) |
+| `LEFT_MIRROR`, `RIGHT_MIRROR` | yaw 20 … 60, at any height up to +30 (looking "leftish" / "rightish", head turned up to ~45° and more) |
+| `LEFT_SIDE`, `RIGHT_SIDE` | yaw beyond 60: head turned fully to the side (no rectangle in the simulator) |
 | `REAR_MIRROR` | top centre: yaw −12 … +12, pitch +8 … +25 |
 | `DOWN`, `UP` | below / above the road box: nothing to look at (`DISTRACTED` after 1 s) |
 | `UNKNOWN` | no face, or the eyes closed longer than a blink |
