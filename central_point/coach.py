@@ -11,7 +11,8 @@ A live tip is asked for when ALL of these hold:
   calm       right now: no driver problem active, no road user's look window open, the last warning
              >= CALM_AFTER_WARNING_S ago (it has been spoken). A tip never talks over a hazard. If no calm
              moment comes within CALM_WAIT_S the tip is dropped; the debrief still covers it.
-A debrief is asked for at simulation_ended when the run lasted >= DEBRIEF_MIN_S and something happened.
+A debrief is asked for at EVERY simulation_ended, however short the run and even if nothing happened (then the
+LLM says the drive was good).
 
 coach_request: {"type": "coach_request", "kind": "tip" | "debrief", "id", "t_s", "report": "<text>"}
 """
@@ -26,7 +27,6 @@ CALM_AFTER_WARNING_S = 3.0
 CALM_WAIT_S = 20.0
 STREAK_N = 6
 STREAK_QUIET_S = 45.0
-DEBRIEF_MIN_S = 20.0
 
 log = logging.getLogger("coach")
 
@@ -99,8 +99,8 @@ class Coach:
 
     def debrief(self, now, info):
         """simulation_ended. `info`: RunLog.end(). Returns a coach_request (dict) or None."""
-        if info["duration_s"] < DEBRIEF_MIN_S or not info["something_happened"]:
-            log.info("no debrief: run too short or nothing happened")
+        if not info["report"]:   # no run was going on (an end without a start): nothing to analyse
+            log.info("no debrief: no run")
             return None
         return {"type": "coach_request", "kind": "debrief", "id": f"debrief-{next(self._ids)}",
                 "t_s": info["duration_s"], "report": info["report"]}

@@ -109,6 +109,11 @@ class GazeConfig(_Section):
     filter_min_cutoff: float = 1.5
     filter_beta: float = 0.05
     blink_hold_s: float = 0.5  # keep last eye angles during a blink
+    # A head turned fully to the side (~90 deg) is out of the webcam's view: the face is lost at a measured yaw of
+    # only ~55-68 deg. A face lost right after the gaze was this far to one side (or in LEFT_SIDE / RIGHT_SIDE) is
+    # that side window (LEFT_SIDE / RIGHT_SIDE), for at most side_hold_s; after that it is UNKNOWN again.
+    side_hold_min_yaw_deg: float = 45.0
+    side_hold_s: float = 3.0
     # eyeLookUp/Down react to the LIDS (half-closed, squinting or closing eyes read as "looking down"), so the
     # blendshape part of the vertical eye angle is used only while the eyes are clearly open; below this
     # openness the vertical eye angle comes from the iris position alone.
@@ -141,11 +146,12 @@ class GazeZonesConfig(_Section):
 
     Defaults: a driving SIMULATOR in full screen. Looking from the middle outwards, per side:
       the road (|yaw| <= gaze.on_road_yaw_deg = 20 deg)   -> ROAD (the whole windshield)
-      the SIDE MIRROR, yaw 20..60 deg, pitch up to +30    -> looking "leftish" / "rightish", head turned up to
-                                                             ~45 deg and more, at any height (a wide band: the
-                                                             measured angles vary a lot)
-      beyond 60 deg                                       -> LEFT_SIDE / RIGHT_SIDE: head turned fully to the
-                                                             side (~90 deg), not a mirror
+      the SIDE MIRROR, yaw 20..50 deg, pitch up to +30    -> looking "leftish" / "rightish", head turned ~45
+                                                             deg, at any height (a wide band: the measured
+                                                             angles vary a lot)
+      beyond 50 deg                                       -> LEFT_SIDE / RIGHT_SIDE: head turned fully to the
+                                                             side (~90 deg; the webcam measures at most ~55-68
+                                                             deg, then loses the face: gaze.side_hold_s)
     The side mirror is a wide band, not a small box: a look at the screen edge is mostly done with the eyes
     and the measured angles vary a lot (eyeLookDown alone is -30..-50 deg), so it must not depend on how low
     or how far out exactly the driver looks. The rear-view mirror is the top centre.
@@ -161,12 +167,12 @@ class GazeZonesConfig(_Section):
     )
     left_mirror: ZoneBox = Field(
         default_factory=lambda: ZoneBox(
-            yaw_min_deg=-60.0, yaw_max_deg=-20.0, pitch_min_deg=-90.0, pitch_max_deg=30.0
+            yaw_min_deg=-50.0, yaw_max_deg=-20.0, pitch_min_deg=-90.0, pitch_max_deg=30.0
         )
     )
     right_mirror: ZoneBox = Field(
         default_factory=lambda: ZoneBox(
-            yaw_min_deg=20.0, yaw_max_deg=60.0, pitch_min_deg=-90.0, pitch_max_deg=30.0
+            yaw_min_deg=20.0, yaw_max_deg=50.0, pitch_min_deg=-90.0, pitch_max_deg=30.0
         )
     )
     hysteresis_deg: float = 3.0  # a zone (mirror, road, down) is kept until the gaze is this far outside its box

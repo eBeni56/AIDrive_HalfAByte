@@ -194,7 +194,9 @@ def decide_gaze(now=None):
     now = time.monotonic() if now is None else now
     if d.received_at is None or now - d.received_at > CAMERA_TIMEOUT_S:
         return "no_gaze_client", None
-    if d.face_detected is False:
+    # A head turned fully to the side is out of the webcam's view: the driver monitor then reports LEFT_SIDE /
+    # RIGHT_SIDE (for a few seconds) with face_detected false - the driver looks out of that side window.
+    if d.face_detected is False and d.zone not in ("LEFT_SIDE", "RIGHT_SIDE"):
         return "no_face", None
     # A blink: the driver monitor keeps the last gaze zone (up to its blink_hold_s, 0.5 s) while the eyes are
     # CLOSED, so the driver still looks there. Only a longer closure (zone UNKNOWN) is "eyes_closed".

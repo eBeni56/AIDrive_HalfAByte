@@ -98,8 +98,8 @@ the calibrated straight-ahead look, yaw − left / + right, pitch − down / + u
 | Zone | Where |
 |---|---|
 | `ROAD` | \|yaw\| ≤ 20, pitch −15 … +15 (the whole windshield: the server's `front`) |
-| `LEFT_MIRROR`, `RIGHT_MIRROR` | yaw 20 … 60, at any height up to +30 (looking "leftish" / "rightish", head turned up to ~45° and more) |
-| `LEFT_SIDE`, `RIGHT_SIDE` | yaw beyond 60: head turned fully to the side (the side window in the simulator) |
+| `LEFT_MIRROR`, `RIGHT_MIRROR` | yaw 20 … 50, at any height up to +30 (looking "leftish" / "rightish", head turned ~45°) |
+| `LEFT_SIDE`, `RIGHT_SIDE` | yaw beyond 50: head turned fully to the side (the side window in the simulator). The webcam loses a fully turned head (it measures at most ~55–68°): a face lost right after a look beyond 45° stays this side window for up to 3 s (`gaze.side_hold_s`), with `face_detected: false` |
 | `REAR_MIRROR` | top centre: yaw −12 … +12, pitch +8 … +25 |
 | `DOWN`, `UP` | below / above the road box: nothing to look at (`DISTRACTED` after 1 s) |
 | `UNKNOWN` | no face, or the eyes closed longer than a blink |

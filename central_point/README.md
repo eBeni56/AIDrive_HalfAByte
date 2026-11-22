@@ -214,7 +214,8 @@ and writes the tip. A tip is asked for when all of these hold:
 * **a calm moment**: no driver problem active, no road user's look window open, the last warning 3 s ago (so it has
   been spoken). No calm moment within 20 s: the tip is dropped (the debrief still covers it).
 
-A **debrief** is asked for at `simulation_ended` when the run lasted at least 20 s and something happened.
+A **debrief** is asked for at every `simulation_ended`, however short the run and even if nothing happened (the
+LLM then says the drive went well).
 
 ```json
 {"type": "coach_request", "kind": "tip", "id": "tip-1", "t_s": 6.6,

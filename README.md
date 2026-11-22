@@ -52,8 +52,7 @@ Then:
    is warned at once (spoken and on the driver display). In a calm moment the coach may give a tip. Where you
    look is shown (the simulator's highlight, the dashboard's `CAM` lines) only from GO to the end of the drive;
    a blink does not hide it. The dashboard's camera image runs all the time.
-5. The simulation ends when every object has driven off the minimap, and in any case after 40 s (an analysis
-   needs at least 20 s). With it no new data is sent any more: no warnings are spoken (a tip already started is
+5. The simulation ends when every object has driven off the minimap, and in any case after 40 s. With it no new data is sent any more: no warnings are spoken (a tip already started is
    finished), the dashboard's log, chat and driver display keep the drive's data and stand still, and the AI
    gets nothing new. About 2-4 s later the AI's analysis of the drive is read out (about half a minute) and
    appears in the dashboard's chat.
@@ -88,8 +87,8 @@ laptop; `gpt-5-mini` was not better on our reports and took 5-35 s.
    time on the road and each mirror, the mirror checks, and the warnings spoken.
 2. **central_point decides when to ask** ([central_point/coach.py](central_point/coach.py)): a tip when a
    pattern shows up (2 warnings of the same kind or 3 in total, or a streak of 6 noticed in time for praise), at
-   most every 40 s and only in a calm moment (no warning, no open look window). An analysis at the end of each
-   drive of 20 s or more. It sends a `coach_request` with a **report: plain facts, no conclusions**.
+   most every 40 s and only in a calm moment (no warning, no open look window). An analysis at the end of every
+   drive, however short. It sends a `coach_request` with a **report: plain facts, no conclusions**.
 3. **safety_ai asks the LLM** ([safety_ai/coach_llm.py](safety_ai/coach_llm.py)) with an instructor prompt:
    use only facts from the report, never guess causes, rank problems by danger (eyes closed > a missed
    pedestrian > phone > blind spots > mirror habits), give a concrete fix for each, compare with the previous
@@ -202,5 +201,5 @@ the Docker part.
 | A mirror is hard to "hit" | Calibrate looking at the screen centre. The camera image on the dashboard shows the live `gaze ZONE (yaw, pitch)`; adjust `gaze_zones` in the driver monitor's config. |
 | "port already in use" | Another program uses it: change the port in `.env`. |
 | No voice at all | Look at the "safety ai" window: it must say `connected to central_point`. Speakers muted, or `SAI_ARGS=--mute` set? |
-| Warnings are spoken, but no tips / no analysis | The window says `NOT reachable` or `no LLM coach`: check `safety_ai/.env` and the internet; `SAI_ARGS=--no-llm` still set? No analysis also after a drive shorter than 20 s. |
+| Warnings are spoken, but no tips / no analysis | The window says `NOT reachable` or `no LLM coach`: check `safety_ai/.env` and the internet; `SAI_ARGS=--no-llm` still set? |
 | What exactly did the LLM get and answer? | `docker compose logs server` shows every `COACH REQUEST` (the report) and `COACH ...` (the answer). |

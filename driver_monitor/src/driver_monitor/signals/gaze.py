@@ -105,6 +105,7 @@ class GazeEstimator:
         self._f_yaw = OneEuroFilter(cfg.filter_min_cutoff, cfg.filter_beta)
         self._f_pitch = OneEuroFilter(cfg.filter_min_cutoff, cfg.filter_beta)
         self._last_eye: tuple[float, float, float] | None = None  # (t, yaw, pitch)
+        self._last_seen: tuple[float, float, GazeZone] | None = None  # face visible: (t, yaw, zone), for side_hold
 
     def reset(self) -> None:
         self._f_yaw.reset()
@@ -159,6 +160,11 @@ class GazeEstimator:
         if face is None or profile is None or head.yaw is None or head.pitch is None:
             self._f_yaw.reset()
             self._f_pitch.reset()
+            side = self._turned_out_of_view(t) if profile is not None else None
+            if side is not None:  # head turned fully to the side: looking out of that side window
+                self.zones.zone = side  # coming back into view, the side zone keeps its hysteresis
+                return GazeSignal(zone=side, zone_for_s=self._set_zone(side, t))
+            self._last_seen = None
             return GazeSignal(zone_for_s=self._set_zone(GazeZone.UNKNOWN, t))
 
         eye_yaw: float | None = None
@@ -178,4 +184,19 @@ class GazeEstimator:
         yaw = head.yaw + (eye_yaw or 0.0)
         pitch = head.pitch + (eye_pitch or 0.0)
         zone = self.zones.classify(yaw, pitch)
+        self._last_seen = (t, yaw, zone)
         return GazeSignal(yaw, pitch, zone, self._set_zone(zone, t))
+
+    def _turned_out_of_view(self, t: float) -> GazeZone | None:
+        """The face was just lost: LEFT_SIDE / RIGHT_SIDE if it was last seen turned that far to the side (the
+        webcam loses a fully turned head), for at most side_hold_s; else None."""
+        if self._last_seen is None:
+            return None
+        seen_t, yaw, zone = self._last_seen
+        if t - seen_t > self.cfg.side_hold_s:
+            return None
+        if zone in (GazeZone.LEFT_SIDE, GazeZone.RIGHT_SIDE):
+            return zone
+        if abs(yaw) >= self.cfg.side_hold_min_yaw_deg:
+            return GazeZone.LEFT_SIDE if yaw < 0 else GazeZone.RIGHT_SIDE
+        return None

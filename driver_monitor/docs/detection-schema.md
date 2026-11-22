@@ -58,8 +58,10 @@ project needs and nothing else: **where the driver looks** (`gaze.zone`), **whet
 The mirror boxes are in `gaze_zones` in the config. The defaults are for the simulator in full screen. From the
 middle outwards, per side:
 * the road (|yaw| ≤ 20°): `ROAD` (the server's `front`: the whole windshield);
-* the side mirror: yaw 20°…60° up to pitch +30° (leftish / rightish, a head turned ~45° included);
-* beyond 60° (`LEFT_SIDE` / `RIGHT_SIDE`): head turned fully to the side (the side window in the simulator);
+* the side mirror: yaw 20°…50° up to pitch +30° (leftish / rightish, a head turned ~45° included);
+* beyond 50° (`LEFT_SIDE` / `RIGHT_SIDE`): head turned fully to the side (the side window in the simulator); a face
+  lost right after a look beyond 45° stays that side for up to 3 s (`gaze.side_hold_s`: the webcam loses a fully
+  turned head);
 * the rear-view mirror is the top centre; looking down in the middle is `DOWN`.
 
 The road box is set by `gaze.on_road_*`.

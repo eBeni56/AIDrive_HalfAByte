@@ -15,6 +15,7 @@ interface Detection {
 export interface DriverState {
   type: "driver_state";
   quality: { face_detected: boolean };
+  gaze?: { zone?: string | null }; // LEFT_SIDE / RIGHT_SIDE without a face: a head turned fully to the side
   calibration: { status: "CALIBRATING" | "DONE" | "DEFAULTS" };
   detections: Detection[];
 }

@@ -45,7 +45,9 @@ export const hudInput = {
   driverState(s: DriverState) {
     driver = s;
     driverAt = Date.now();
-    if (s.quality.face_detected) noFaceSince = null;
+    // a head turned fully to the side is out of the camera's view, but it is a look out of the side window
+    const sideLook = s.gaze?.zone === "LEFT_SIDE" || s.gaze?.zone === "RIGHT_SIDE";
+    if (s.quality.face_detected || sideLook) noFaceSince = null;
     else if (noFaceSince === null) noFaceSince = driverAt;
   },
   simulation(msg: { event?: string }) {
