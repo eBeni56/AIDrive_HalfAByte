@@ -5,10 +5,23 @@ with Vite.
 
 | Panel | Shows |
 |---|---|
-| **Camera** (top left) | the driver monitor's own camera image with its markings: eye contours, iris, gaze arrow, phone box, a status panel with the live `gaze ZONE (yaw, pitch)` |
-| **Assistant** (bottom left) | the conversation with the voice assistant (a placeholder until that exists) |
-| **Simulation** (centre) | a log in plain sentences, see below |
-| **Driver** (right) | the driver display: ONE big icon and one short instruction, the most important current problem |
+| **Camera** (default: top left) | the driver monitor's own camera image with its markings: eye contours, iris, gaze arrow, phone box, a status panel with the live `gaze ZONE (yaw, pitch)` |
+| **Assistant** (default: bottom left) | the conversation with the voice assistant (a placeholder until that exists) |
+| **Simulation** (default: centre) | a log in plain sentences, see below |
+| **Driver** (default: right) | the driver display: ONE big icon and one short instruction, the most important current problem |
+
+**The layout is free**, like pictures on a slide: every panel is a window.
+
+* **Move** a window by dragging its title bar; **resize** it by dragging an edge or a corner. While dragging, its
+  size in pixels is shown. Edges snap to the page's edges and to the other windows (also one 8 px gap away), so
+  a tidy side-by-side arrangement is easy; hold **Alt** to place freely. Clicking a window brings it to the front.
+* Content that does not fit scrolls inside its window (the log and the chat; the driver display also scales its
+  icon and text with the window).
+* **Lock layout** / **Reset layout** (bottom-right corner, faint until the mouse is over it): lock stops all
+  moving and resizing (e.g. during a demo); reset restores the default arrangement.
+* The layout is saved in this browser (`localStorage`) and comes back after a reload. Positions are kept as
+  shares of the page, so an arrangement keeps its proportions when the browser window changes size (full
+  screen ↔ split screen). For a split screen: put the browser into its half, arrange the windows, lock.
 
 **The Simulation log.** `SIM` (blue): the run started, a new object appeared, an object moved into another zone
 (and how long the driver has to look). `CAM` (teal): where the driver looks, when it changes and holds for
@@ -74,7 +87,8 @@ Put them into `dashboard/.env.local` for `npm run dev`.
 
 | File | What |
 |---|---|
-| `src/App.tsx` | the layout: camera and chat on the left, the Simulation log, the driver display |
+| `src/App.tsx` | the four panels, handed to the workspace |
+| `src/components/Workspace.tsx`, `src/layout.ts` | the free layout: windows, moving, resizing, snapping, lock / reset; the default arrangement and saving it |
 | `src/useServer.ts` | the WebSocket: hello, hands each message to the right place, reconnects |
 | `src/narrator.ts` | every sentence of the Simulation log and the end-of-run statistics |
 | `src/hud.ts`, `src/components/DriverHud.tsx` | the driver display: which problem is shown (priorities, 3 s hold), its text and icon |

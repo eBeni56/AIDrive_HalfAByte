@@ -31,6 +31,9 @@ export function CameraPanel({ live }: Props) {
   const showing = loaded && live;
   return (
     <section className="panel camera">
+      <div className="panel-title">
+        <span>Camera</span>
+      </div>
       <div className="camera-frame">
         <img
           key={attempt}
@@ -38,6 +41,7 @@ export function CameraPanel({ live }: Props) {
           alt="Driver camera with detections"
           onLoad={() => setLoaded(true)}
           onError={retryLater}
+          draggable={false}
           style={{ visibility: showing ? "visible" : "hidden" }}
         />
         {!showing && <div className="camera-empty">no camera image</div>}
