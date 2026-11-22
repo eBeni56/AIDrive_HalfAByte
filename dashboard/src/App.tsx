@@ -7,13 +7,13 @@ import { simLog } from "./log";
 import { useServer } from "./useServer";
 
 export function App() {
-  const cameraLive = useServer();
+  const { cameraLive, running } = useServer();
 
   // Each panel is a window of the workspace: moved by its title bar, resized by its edges (Workspace.tsx).
   return (
     <Workspace
       panels={{
-        camera: <CameraPanel live={cameraLive} />,
+        camera: <CameraPanel live={cameraLive} running={running} />,
         chat: <ChatPanel />,
         simulation: (
           <Terminal

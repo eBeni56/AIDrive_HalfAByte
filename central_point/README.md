@@ -88,13 +88,15 @@ look is not set yet (the countdown sets it), and after the end the drive is over
 ```
 
 `timestamp` is the server's Unix time. `region` is set only when `status` is `ok`. Decided from the latest
-`driver_state`, the first matching row wins:
+`driver_state`, the first matching row wins. A blink is not "eyes closed": during it (up to 0.5 s, the driver
+monitor's `blink_hold_s`) the driver monitor keeps the last gaze zone, so the region stays and a look is not
+broken:
 
 | The driver monitor says | `status` | `region` |
 |---|---|---|
 | nothing yet, or nothing for `CAMERA_TIMEOUT_S` (1 s) | `no_gaze_client` | `null` |
 | `quality.face_detected: false` | `no_face` | `null` |
-| `eyes.state: CLOSED` | `eyes_closed` | `null` |
+| `eyes.state: CLOSED` and `gaze.zone` `UNKNOWN` or missing (closed longer than a blink) | `eyes_closed` | `null` |
 | `calibration.status: CALIBRATING` | `calibrating` | `null` |
 | `ROAD`, yaw < −7° / within ±7° / > +7° (`FRONT_SPLIT_DEG`) | `ok` | `front_left` / `front_center` / `front_right` |
 | `LEFT_MIRROR` / `REAR_MIRROR` / `RIGHT_MIRROR` | `ok` | `mirror_left` / `mirror_center` / `mirror_right` |
@@ -102,7 +104,9 @@ look is not set yet (the countdown sets it), and after the end the drive is over
 | `UP`, `DOWN`, `UNKNOWN` or missing | `ok` | `away` |
 
 **To the dashboard only:**
-* the latest `driver_state` exactly as received, `DASHBOARD_HZ` (10) times per second, only when a new one came;
+* the latest `driver_state` exactly as received, `DASHBOARD_HZ` (10) times per second, only when a new one came,
+  only during a run;
+* a dashboard that connects during a run first gets that run's `simulation_started`;
 * `simulation_started` / `simulation_ended` as received (the ticks are not forwarded);
 * the attention messages (below) and every valid `chat_message`;
 * every warning (not its repeats), tip and debrief as a chat line: `{"type": "chat_message", "role": "assistant", "text": ...}`.
@@ -113,7 +117,13 @@ CALIBRATING` meanwhile (no `gaze_update` is sent yet: the run starts at GO).
 
 **To safety_ai only:** every `warning` (also the repeats) and every `coach_request` (below), only during a run
 (from `simulation_started` to `simulation_ended`): nothing before GO, and nothing that could interrupt the
-end-of-drive analysis.
+end-of-drive analysis. Also `simulation_started` / `simulation_ended` as received: at the end safety_ai speaks no
+more warnings, finishes the tips it already has, then speaks only the debrief (requested right after). A tip
+asked for during the run whose `coach_result` comes back after the end is still shown in the chat.
+
+**Outside a run** (before GO, after `simulation_ended`) the server sends nothing new but the end-of-drive debrief,
+its chat lines and a tip still being finished; the driver monitor keeps streaming `driver_state` to the server
+(so the camera data is fresh at GO), but it goes nowhere.
 
 ## Attention: did the driver look in time?
 

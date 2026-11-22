@@ -44,14 +44,18 @@ Then:
 2. In the simulator, drag objects onto the road and press **Start simulation**.
 3. **"Look at the centre of the screen"** and a 5-4-3-2-1 countdown (the world stands still). Meanwhile the
    camera measures your straight-ahead look again: the 0,0 of every gaze zone, so it is right for this drive
-   even if you moved since the start. Where you look is shown (simulator badge and highlight, the dashboard's
-   `CAM` lines) only from GO to the end of the drive.
+   even if you moved since the start. Where you look is shown (the simulator's highlight, the dashboard's
+   `CAM` lines) only from GO to the end of the drive; a blink does not hide it. The dashboard's camera image
+   runs all the time.
 4. **GO**: only now do the eye tracking of the drive, the warnings and the coach start. Look where the objects
    are. The dashboard logs whether you looked in time; a miss, closed eyes, the phone or looking down is warned
    at once (spoken and on the driver display). In a calm moment the coach may give a tip.
-5. The simulation ends (after at least 20 s) and so does the eye tracking of the drive: no more warnings, and
-   the AI gets nothing new. About 2-4 s later the AI's analysis of the drive is spoken (about half a minute),
-   uninterrupted, and appears in the dashboard's chat. Drive again: the next analysis compares the two.
+5. The simulation ends when every object has driven off the minimap, and in any case after 40 s (an analysis
+   needs at least 20 s). With it no new data is sent any more: no warnings are spoken (a tip already started is
+   finished), the dashboard's log, chat and driver display keep the drive's data and stand still, and the AI
+   gets nothing new. About 2-4 s later the AI's analysis of the drive is spoken (about half a minute),
+   uninterrupted, and appears in the dashboard's chat. After that nothing changes until the next **Start
+   simulation**. Drive again: the next analysis compares the two.
 
 Another camera: `set DM_ARGS=--camera 0` before `start.bat` (`--list-cameras` shows them). To calibrate the
 eyes again, restart `start.bat` (or run the driver monitor by hand with its window and press `c`, see below);
@@ -135,12 +139,13 @@ everything else works: the warnings are still spoken, there are just no tips and
 | simulator → server | `simulation_countdown` (at Start: "look at the centre"), `simulation_started` (at GO), `simulation_tick` (every object's position), `simulation_ended` | a run; ticks 10/s |
 | server → driver monitor | `recenter_gaze`: measure the straight-ahead look again | at `simulation_countdown` |
 | server → simulator, dashboard | `gaze_update`: where the driver looks, as one of the 8 regions (or `away`) and a status | 10/s, only during a run (GO to the end) |
-| server → dashboard | the latest `driver_state`, `attention_event` / `attention_summary`, the run's start / end, `chat_message` | as they happen |
+| server → dashboard | the latest `driver_state`, `attention_event` / `attention_summary`, the run's start / end, `chat_message` | as they happen; `driver_state` only during a run |
+| server → safety_ai | `simulation_started` / `simulation_ended` (at the end: no more warnings, the tips are finished, then only the analysis) | a run |
 | dashboard → server | `hello` (role `dashboard`) | once per connection |
 | server → safety_ai | `warning` (the line to speak, a priority), `coach_request` (the facts, for a tip or the end-of-drive analysis) | only between `simulation_started` and `simulation_ended`: a miss / driver problem; a pattern; at the end the analysis |
 | safety_ai → server | `hello` (role `safety_ai`), `coach_result` (the LLM's tip / analysis; shown in the dashboard's chat) | per request |
 | safety_ai → Azure | the report and the instructor prompt (HTTPS, Responses API); back: the answer as JSON | per request |
-| driver monitor → dashboard | the camera image with the markings (MJPEG over HTTP, port 8090) | while the page is open |
+| driver monitor → dashboard | the camera image with the markings (MJPEG over HTTP, port 8090) | all the time while the page is open |
 
 Every WebSocket message is one JSON object, all on one port (8765). The exact fields are in each folder's README.
 
@@ -190,7 +195,7 @@ the Docker part.
 |---|---|
 | Dashboard: "Camera not connected" | The driver monitor is not running or still starting: look at its window. |
 | Dashboard: "No connection to the server" | Docker is not running (yet). |
-| Simulator badge: "No gaze data" | While driving, no `gaze_update` for 1.5 s: the server is not reachable. (Before GO and after the end the badge is hidden: where you look is shown only during the drive.) |
+| No gaze highlight in the simulator while driving | No `gaze_update` for 1.5 s (the server is not reachable), or the camera sees no face / closed eyes: the dashboard's driver display says which. (Before GO and after the end nothing is shown, on purpose.) |
 | A mirror is hard to "hit" | Calibrate looking at the screen centre. The camera image on the dashboard shows the live `gaze ZONE (yaw, pitch)`; adjust `gaze_zones` in the driver monitor's config. |
 | "port already in use" | Another program uses it: change the port in `.env`. |
 | No voice at all | Look at the "safety ai" window: it must say `connected to central_point`. Speakers muted, or `SAI_ARGS=--mute` set? |

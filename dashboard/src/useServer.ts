@@ -3,7 +3,8 @@
 //   gaze_update            (GAZE_HZ, default 10/s)       where the driver looks    -> simulation log
 //   simulation_started / _ended, attention_event, attention_summary              -> both
 //   chat_message           (when one is sent)                                     -> chat panel
-// Reconnects every RETRY_MS if the server is not running or restarts.
+// Reconnects every RETRY_MS if the server is not running or restarts. The server sends driver_state and
+// gaze_update only during a run (simulation_started to _ended); outside it the page stands still.
 import { useEffect, useState } from "react";
 import { addChatMessage } from "./chat";
 import { RETRY_MS, STALE_MS, WS_URL } from "./config";
@@ -11,9 +12,14 @@ import { hudInput } from "./hud";
 import { onDriverState, onGaze, onServer, onSimulation } from "./narrator";
 import type { DriverState, GazeUpdate } from "./types";
 
-/** True while fresh driver_state arrives (the driver monitor runs and the server is connected). */
-export function useServer(): boolean {
+export interface ServerState {
+  cameraLive: boolean; // fresh driver_state arrives (the driver monitor runs and the server is connected)
+  running: boolean; // a simulation runs (between simulation_started and simulation_ended)
+}
+
+export function useServer(): ServerState {
   const [cameraLive, setCameraLive] = useState(false);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -57,6 +63,8 @@ export function useServer(): boolean {
         } else if (msg.type === "chat_message" && (msg.role === "user" || msg.role === "assistant")) {
           addChatMessage(msg.role, String(msg.text ?? ""));
         } else if (typeof msg.event === "string") {
+          if (msg.event === "simulation_started") setRunning(true);
+          else if (msg.event === "simulation_ended") setRunning(false);
           hudInput.simulation(msg);
           onSimulation(msg);
         }
@@ -66,6 +74,7 @@ export function useServer(): boolean {
         hudInput.connection(false);
         wasConnected = false;
         setLive(false);
+        setRunning(false); // a reconnect during a run gets simulation_started again from the server
         if (!stopped) retry = window.setTimeout(open, RETRY_MS);
       };
     };
@@ -79,5 +88,5 @@ export function useServer(): boolean {
     };
   }, []);
 
-  return cameraLive;
+  return { cameraLive, running };
 }

@@ -69,8 +69,8 @@ for (let i = 0; i < 16; i++) {
 }
 
 function sizePx(w_m, l_m) {
-  // Real size in px, with a minimum so small objects stay visible.
-  return { w: Math.max(w_m * PIXELS_PER_METER, 22), h: Math.max(l_m * PIXELS_PER_METER, 22) };
+  // Real size in px (at the setup zoom), with a minimum so small objects stay visible and grabbable.
+  return { w: Math.max(w_m * SETUP_PX_PER_M, 16), h: Math.max(l_m * SETUP_PX_PER_M, 16) };
 }
 
 function setBox(el, w_m, l_m) {
@@ -81,7 +81,7 @@ function setBox(el, w_m, l_m) {
 
 function layout() {
   const c = egoCenter();
-  const roadW = 3 * LANE_WIDTH_PX;
+  const roadW = 3 * LANE_WIDTH_M * SETUP_PX_PER_M;
   road.style.width = roadW + "px";
   road.style.left = (c.x - roadW / 2 - 5) + "px";   // -5: left border width
   for (const t of document.querySelectorAll(".tuft")) {
@@ -94,7 +94,7 @@ function layout() {
   setBox(ego, EGO_SIZE.w, EGO_SIZE.l);
   ego.style.left = c.x + "px"; ego.style.top = c.y + "px";
   const s = sizePx(EGO_SIZE.w, EGO_SIZE.l);
-  egoRing.style.width = (s.w + 16) + "px"; egoRing.style.height = (s.h + 16) + "px";
+  egoRing.style.width = (s.w + 12) + "px"; egoRing.style.height = (s.h + 12) + "px";
   egoRing.style.left = c.x + "px"; egoRing.style.top = c.y + "px";
   for (const o of objects.values()) positionObj(o);
 }

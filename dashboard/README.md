@@ -5,7 +5,7 @@ with Vite.
 
 | Panel | Shows |
 |---|---|
-| **Camera** (default: top left) | the driver monitor's own camera image with its markings: eye contours, iris, gaze arrow, phone box, a status panel with the live `gaze ZONE (yaw, pitch)` |
+| **Camera** (default: top left) | the driver monitor's own camera image with its markings: eye contours, iris, gaze arrow, phone box, a status panel with the live `gaze ZONE (yaw, pitch)`; always, also outside a simulation |
 | **Assistant** (default: bottom left) | the conversation with the voice assistant (a placeholder until that exists) |
 | **Simulation** (default: centre) | a log in plain sentences, see below |
 | **Driver** (default: right) | the driver display: ONE big icon and one short instruction, the most important current problem |
@@ -30,6 +30,12 @@ in time. `STATS` at the end: a small table of the run (time looking at the road,
 closed; objects noticed / missed and which; average reaction; how often the eyes were closed, the driver looked up
 or down, held a phone). `SYS` (grey): the connection to the server.
 
+**New data only during a simulation** (GO to the end): the server sends `driver_state` and `gaze_update` only
+then. After the end everything of the drive stays on the page (the log with its `STATS`, the chat, the driver
+display's last message) and nothing changes any more, except the end-of-drive analysis (and a tip still being
+finished) arriving in the chat, until the next simulation starts. Before the first one the driver display says
+"No simulation running". The camera image is shown all the time.
+
 **The driver display**, the highest first: eyes closed ("Wake up! Open your eyes") · an object the driver has
 not looked at yet ("Look right: a truck is in your right blind spot", with a direction arrow) · phone in the
 hand ("Put down your phone") · looking up or down for 1 s ("Eyes on the road") · no face in the camera for 1 s ·
@@ -50,7 +56,8 @@ one replaces it sooner.
   `quality.face_detected` and `calibration.status` are used.
 * **Camera image.** An `<img>` of the driver monitor's MJPEG stream (`camera_stream` in
   `driver_monitor/config/driver_monitor.yaml`). The browser can't open the webcam itself: the driver monitor
-  already uses it. The image is reopened when the driver monitor (re)starts.
+  already uses it. Shown all the time; during a run it is hidden while no camera data arrives, and reopened when
+  the driver monitor comes back.
 * **Chat.** A line appears when any client sends the server
   `{"type": "chat_message", "role": "user" | "assistant", "text": "..."}`, or when code in the page calls
   `addChatMessage(role, text)` from `src/chat.ts` (in the browser console: `window.dashboardChat.add("assistant", "hi")`).

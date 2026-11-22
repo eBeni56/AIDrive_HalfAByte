@@ -6,7 +6,8 @@ One worker thread owns the model and one audio stream that stays open. say(text,
   - otherwise it waits; when the speaker is free, the most urgent waiting line is spoken (oldest first);
   - a line still waiting after max_age_s is dropped: an old warning is worse than none;
   - the same text is never waiting twice.
-drop_below(priority) removes the waiting lines below a priority (a tip once a warning came in).
+drop_below(priority) removes the waiting lines below a priority (a tip once a warning came in); drop_above(priority)
+the ones above it (the warnings at the end of a run).
 The audio of every finished line is cached, so a repeated warning starts at once.
 """
 import logging
@@ -68,6 +69,12 @@ class Voice:
     def drop_below(self, priority):
         with self.cond:
             self.waiting = [w for w in self.waiting if w.priority >= priority]
+
+    def drop_above(self, priority):
+        """Remove the waiting lines above a priority (the warnings once the run is over); the line being spoken
+        is finished."""
+        with self.cond:
+            self.waiting = [w for w in self.waiting if w.priority <= priority]
 
     # ---- the worker thread ----
 

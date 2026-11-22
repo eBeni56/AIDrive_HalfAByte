@@ -1,11 +1,9 @@
-// Gaze display: receives gaze_update from the server, shows a status badge and highlights the looked-at
-// region on the first-person view. Display only; sends nothing. Only while driving (GO to the end, see
-// setGazeActive): the straight-ahead look is set during the countdown, so before it there is nothing to show.
+// Gaze display: receives gaze_update from the server and highlights the looked-at region on the first-person
+// view. Display only; sends nothing. Only while driving (GO to the end, see setGazeActive): the straight-ahead
+// look is set during the countdown, so before it there is nothing to show, and after the end the drive is over.
 
 // Latest state. `t` = performance.now() when the last valid message arrived (0 = never).
 const gaze = { status: null, region: null, t: 0, active: false };
-const badgeEl = document.getElementById("gaze-badge");
-let badgeKey = "";   // last rendered badge content, to skip needless DOM writes
 
 function gazeFresh(now) { return gaze.t > 0 && (now === undefined ? performance.now() : now) - gaze.t <= GAZE_TIMEOUT_MS; }
 
@@ -13,8 +11,6 @@ function gazeFresh(now) { return gaze.t > 0 && (now === undefined ? performance.
 function setGazeActive(on) {
   gaze.active = on;
   gaze.status = null; gaze.region = null; gaze.t = 0;
-  document.body.classList.toggle("driving", on);
-  updateGazeBadge();
 }
 
 // Parse one incoming frame. Ignores anything invalid (and everything outside the driving phase); never throws.
@@ -23,34 +19,13 @@ function handleGazeMessage(data) {
     if (!gaze.active || typeof data !== "string") return;
     const m = JSON.parse(data);
     if (!m || typeof m !== "object" || Array.isArray(m) || m.event !== "gaze_update") return;
-    if (typeof m.status !== "string" || !Object.hasOwn(GAZE_STATUS_STYLE, m.status)) return;
+    if (typeof m.status !== "string" || !GAZE_STATUSES.includes(m.status)) return;
     const region = m.status === "ok" ? m.region : null;
     if (m.status === "ok" && !GAZE_REGIONS.includes(region)) return;
     gaze.status = m.status; gaze.region = region;
     gaze.t = performance.now();
-    updateGazeBadge();
   } catch (e) { /* malformed message: ignore */ }
 }
-
-// Badge in the DOM: shown only while driving (body.driving, style.css).
-function updateGazeBadge() {
-  if (!badgeEl) return;
-  let style, text;
-  if (!gazeFresh()) { style = GAZE_STALE_STYLE; text = style.text; }
-  else {
-    if (gaze.status === "ok" && gaze.region === "away") { style = GAZE_AWAY_STYLE; text = "Gaze: AWAY"; }
-    else if (gaze.status === "ok") { style = GAZE_STATUS_STYLE.ok; text = "Gaze: " + gaze.region; }
-    else { style = GAZE_STATUS_STYLE[gaze.status]; text = style.text; }
-  }
-  const key = text + "|" + style.color;
-  if (key === badgeKey) return;
-  badgeKey = key;
-  badgeEl.style.borderColor = style.color;
-  badgeEl.firstElementChild.style.background = style.color;
-  badgeEl.children[1].textContent = text;
-}
-setInterval(updateGazeBadge, GAZE_CHECK_MS);   // the 1.5 s expiry ("No gaze data") while driving
-updateGazeBadge();
 
 // ------------------------------ REGION GEOMETRY --------------------------------------
 // The ONE place that maps a region name to a screen shape. Returns a polygon [[x, y], ...] in CSS px

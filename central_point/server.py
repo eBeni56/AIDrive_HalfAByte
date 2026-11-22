@@ -17,8 +17,11 @@ Who sends / gets what:
                                                                      simulation_started / _ended, attention_event /
                                                                      _summary, chat_message (every warning, tip and
                                                                      debrief, plus any client's chat_message)
-  safety_ai       -> {"type": "hello", "role": "safety_ai"},      <- warning (speaks it), coach_request (asks the
-                     coach_result (the LLM's tip / debrief)          LLM); its coach_result goes to the dashboard
+  safety_ai       -> {"type": "hello", "role": "safety_ai"},      <- simulation_started / _ended, warning (speaks
+                     coach_result (the LLM's tip / debrief)          it), coach_request (asks the LLM); its
+                                                                     coach_result goes to the dashboard
+Outside a run (before GO, after simulation_ended) nothing new is sent but the end-of-drive debrief (and a tip that
+was already being written): no gaze_update, no driver_state, no warnings, no new tips.
 
 Environment variables: HOST (default localhost; 0.0.0.0 in Docker), PORT (8765), GAZE_HZ (10), DASHBOARD_HZ (10),
 CAMERA_TIMEOUT_S (1.0), FRONT_SPLIT_DEG (7), EYES_CLOSED_VOICE_S / EYES_CLOSED_REPEAT_S / ATTENTION_REPEAT_S
@@ -55,6 +58,7 @@ NO_GAZE_UPDATE = {"camera", "chat", "safety_ai"}   # roles that don't get gaze_u
 
 clients = {}                  # ws -> "simulator" | "camera" | "dashboard" | "safety_ai" | "chat" | None (unknown)
 latest_driver_state = None    # the last driver_state text, as received (for the dashboard)
+run_started_raw = None        # the running run's simulation_started text (for a dashboard that connects later)
 watch = attention.Attention()
 warner = alerts.Alerts()
 run = runlog.RunLog()
@@ -108,6 +112,7 @@ def route(raw, now=None):
 
 
 def simulator_event(event, raw, now):
+    global run_started_raw
     region = current_region(now)
     if event == "simulation_countdown":   # the driver looks at the screen centre: the camera's new 0,0
         text = json.dumps({"type": "recenter_gaze", "timestamp": time.time()})
@@ -116,14 +121,17 @@ def simulator_event(event, raw, now):
     if event == "simulation_started":
         run.start(now)
         coaching.start(now)
-        return [("dashboard", raw)] + attention_out(watch.start(now), now)
+        run_started_raw = raw
+        return [("dashboard", raw), ("safety_ai", raw)] + attention_out(watch.start(now), now)
     if event == "simulation_tick":
         if not run.running:   # e.g. the server was restarted in the middle of a run
             run.start(now)
             coaching.start(now)
         return attention_out(watch.on_tick(now, list(sim.world.objects.values()), region), now)
     if event == "simulation_ended":
-        out = attention_out(watch.end(now, region), now) + [("dashboard", raw)]
+        # safety_ai gets the end before the debrief request: it finishes the tips, then only the debrief comes
+        out = attention_out(watch.end(now, region), now) + [("dashboard", raw), ("safety_ai", raw)]
+        run_started_raw = None
         req = coaching.debrief(now, run.end(now))
         if req:
             out.append(("safety_ai", coach_request(req)))
@@ -187,7 +195,9 @@ def decide_gaze(now=None):
         return "no_gaze_client", None
     if d.face_detected is False:
         return "no_face", None
-    if d.eyes == "CLOSED":
+    # A blink: the driver monitor keeps the last gaze zone (up to its blink_hold_s, 0.5 s) while the eyes are
+    # CLOSED, so the driver still looks there. Only a longer closure (zone UNKNOWN) is "eyes_closed".
+    if d.eyes == "CLOSED" and d.zone in (None, "UNKNOWN"):
         return "eyes_closed", None
     if d.calibration == "CALIBRATING":
         return "calibrating", None
@@ -233,6 +243,8 @@ async def handler(ws: ServerConnection):
             if role and clients.get(ws) is None:
                 clients[ws] = role
                 log.info("%s connected", role)
+                if role == "dashboard" and run.running and run_started_raw:   # joined during a run
+                    await ws.send(run_started_raw)
     except ConnectionClosed:
         pass
     role = clients.pop(ws, None)
@@ -258,10 +270,12 @@ async def tick_loop():
 
 async def send_dashboard_loop():
     """Send the latest driver_state DASHBOARD_HZ times per second to the dashboards (the camera sends
-    ~30/s, more than a page needs). Nothing is sent while no new driver_state arrived."""
+    ~30/s, more than a page needs), only during a run. Nothing is sent while no new driver_state arrived."""
     last = None
     while True:
         await asyncio.sleep(1.0 / DASHBOARD_HZ)
+        if not run.running:
+            continue
         text = latest_driver_state
         if text is not None and text is not last:
             await broadcast(text, lambda role: role == "dashboard")

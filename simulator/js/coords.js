@@ -1,20 +1,23 @@
 // Pixel <-> meter conversion, lanes and zones.
 
 // ===================== COORDINATE MATH =====================
-// World frame: origin = center of the ego car (= center of the viewport).
+// World frame: origin = center of the ego car (= center of the setup screen's free area above the toolbar).
 //   x_m: + to the RIGHT of ego, - to the left.
 //   y_m: + AHEAD of ego (screen up), - behind. Screen y grows DOWN, so the sign is flipped.
-// All metric values are screen pixels divided by PIXELS_PER_METER.
-function egoCenter() { return { x: window.innerWidth / 2, y: window.innerHeight / 2 }; }
+// On the setup screen, metric values are screen pixels divided by SETUP_PX_PER_M (zoomed out).
+function egoCenter() {
+  const tb = document.getElementById("toolbar");
+  return { x: window.innerWidth / 2, y: (window.innerHeight - (tb ? tb.offsetHeight : 0)) / 2 };
+}
 
 function pxToMeters(px, py) {
   const c = egoCenter();
-  return { x_m: (px - c.x) / PIXELS_PER_METER,
-           y_m: (c.y - py) / PIXELS_PER_METER };   // flipped: up on screen = ahead = positive
+  return { x_m: (px - c.x) / SETUP_PX_PER_M,
+           y_m: (c.y - py) / SETUP_PX_PER_M };   // flipped: up on screen = ahead = positive
 }
 function metersToPx(x_m, y_m) {
   const c = egoCenter();
-  return { x: c.x + x_m * PIXELS_PER_METER, y: c.y - y_m * PIXELS_PER_METER };
+  return { x: c.x + x_m * SETUP_PX_PER_M, y: c.y - y_m * SETUP_PX_PER_M };
 }
 
 const ROAD_HALF_M = 1.5 * LANE_WIDTH_M;   // 3 lanes, ego in the middle: road spans +-5.25 m

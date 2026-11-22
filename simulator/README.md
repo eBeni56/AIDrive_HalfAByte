@@ -13,20 +13,24 @@ where the server says the driver is looking. Plain HTML/CSS/JS, no build step.
 
 ## Use
 
-1. **Setup:** drag an icon from the toolbar onto the road (3 lanes). Drag a placed object to move it;
+1. **Setup:** drag an icon from the toolbar onto the road (3 lanes). The ego car is in the middle of the free
+   area above the toolbar, and the setup view is zoomed out (`SETUP_ZOOM` 0.5: display only, the positions sent
+   keep their scale), so objects can be placed ~25 m ahead or behind. Drag a placed object to move it;
    right-click or double-click removes it; **Clear all** removes everything. **Speed** (1x → 2x → 0.25x → 0.5x)
    multiplies only the objects' speeds.
 2. **Start simulation** (at least one object): "Look at the centre of the screen" and a 5-4-3-2-1 countdown
    with the world frozen (`COUNTDOWN_S`); meanwhile the camera measures the driver's straight-ahead look again
-   (the 0,0 of the gaze). Then **GO**. The gaze badge and the highlight are shown only from GO to the end of
-   the drive (not in setup, the countdown or after the end).
+   (the 0,0 of the gaze). Then **GO**. The gaze highlight is shown only from GO to the end of the drive (not in
+   setup, the countdown or after the end).
 3. **Driving:** the first-person view (windshield, A-pillars, three mirrors) on the left, a top-down minimap on
-   the right. **Esc** / **Abort** stops it.
-4. The run ends 3 s after the last object has finished; **Back to setup** keeps the placed objects.
+   the right with the ego car in its middle. **Esc** / **Abort** stops it.
+4. The run ends as soon as every object has driven off the minimap, and in any case after 40 s of driving
+   (`MAX_RUN_S`, not shown anywhere): objects that never leave it (parked in the centre lane, a pedestrian who
+   has crossed, a very slow bicycle) end it then. **Back to setup** keeps the placed objects.
 
 How the objects move: vehicles in a side lane drive ahead (car and motorcycle 5 m/s, truck 3.5, bicycle 2, each
-±10 %) and are finished 80 m ahead; vehicles in the centre lane stay parked; pedestrians start on the grass on
-their nearer side and cross the road (1.4 m/s).
+±10 %) and are finished once they have left the minimap at the top; vehicles in the centre lane stay parked;
+pedestrians start on the grass on their nearer side and cross the road (1.4 m/s).
 
 ## What it sends
 
@@ -75,13 +79,13 @@ forgotten, so an old one is never shown:
 {"event": "gaze_update", "timestamp": 1763640012.345, "status": "ok", "region": "mirror_left"}
 ```
 
-| `status` | Badge (bottom right) | First-person view |
-|---|---|---|
-| `ok` | green `Gaze: mirror_left` (amber `Gaze: AWAY` for region `away`) | the region gets a pulsing red frame and a "LOOKING: ..." label |
-| `no_face` / `eyes_closed` | red `No face detected` / `Eyes closed` | no highlight |
-| `calibrating` | blue `Camera calibrating - look straight ahead` | no highlight |
-| `no_gaze_client` | grey `No camera connected` | no highlight |
-| nothing for 1.5 s | grey `No gaze data` | no highlight (a dead connection never leaves an old one) |
+| `status` | First-person view |
+|---|---|
+| `ok` | the region gets a pulsing red frame and a "LOOKING: ..." label (region `away`: an amber "AWAY" label) |
+| `no_face`, `eyes_closed`, `calibrating`, `no_gaze_client` | no highlight |
+| nothing for 1.5 s | no highlight (a dead connection never leaves an old one) |
+
+There is no gaze badge: the camera's state is on the dashboard.
 
 The regions on the screen: `front_left`, `front_center`, `front_right` (thirds of the windshield), `side_left`,
 `side_right` (the side-window glass outside the A-pillars), `mirror_center`, `mirror_left`, `mirror_right` (the
@@ -102,7 +106,7 @@ connection state is logged when it changes.
 | `js/coords.js` | pixels ↔ meters, lanes, `mapPx` (the position that is sent) |
 | `js/setup.js` | the setup screen: icons, placing and dragging objects |
 | `js/render.js` | the first-person view, the mirrors, the minimap |
-| `js/gaze.js` | `gaze_update`: the badge and the highlight |
+| `js/gaze.js` | `gaze_update`: the highlight |
 | `js/ws.js` | the WebSocket client and the console log |
 | `js/sim.js` | the movement, the run (countdown → driving → done) and every message sent |
 | `Dockerfile`, `nginx.conf` | the Docker image: static files + `/ws` passed to the server |

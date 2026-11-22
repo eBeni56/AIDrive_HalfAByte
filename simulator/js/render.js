@@ -346,7 +346,7 @@ const MINIMAP = {
   widthFrac: 0.30,     // panel width as a fraction of the window width (the driving view gets the rest)
   margin: 6,           // gap between the panel edge and the map, px
   halfWidthM: 8,       // lateral meters shown on each side of ego (road is +-5.25 m, rest is grass)
-  egoFrac: 0.62,       // ego's vertical position in the panel, from the top (more room ahead than behind)
+  egoFrac: 0.5,        // ego's vertical position in the panel, from the top (0.5 = in the middle)
 };
 
 // Setup SVG icons as images for canvas drawing (needs xmlns + explicit size to rasterize everywhere).

@@ -5,7 +5,10 @@ Connects to central_point as {"type": "hello", "role": "safety_ai"} and gets:
   coach_request   -> the LLM (coach_llm.py, Azure) writes a tip or a debrief from the report; it is spoken and
                      sent back as coach_result, which central_point shows on the dashboard and remembers.
 A tip is not spoken (and not sent back) when a warning came in while the LLM was writing it: a tip must never
-compete with a hazard. Reconnects every RETRY_S when central_point is not running.
+compete with a hazard. simulation_started / _ended mark the run: at the end no warning is spoken any more (the
+waiting ones are dropped, later ones ignored), but the tips are finished: the one being spoken, the waiting
+ones and one the LLM is still writing (unless the debrief came first). Then the debrief, then silence.
+Reconnects every RETRY_S when central_point is not running.
 
   python safety_ai/main.py [--hub ws://localhost:8765] [--voice female_1] [--mute] [--no-llm]
 """
@@ -35,6 +38,8 @@ class SafetyAI:
         self.voice = voice
         self.llm = llm
         self.last_warning_at = 0.0
+        self.debrief_at = 0.0     # when the last debrief was handed to the voice
+        self.over = False         # True from simulation_ended until the next simulation_started
         self.tasks = set()        # running coach calls (asyncio keeps only weak references)
 
     async def run(self, url):
@@ -61,7 +66,15 @@ class SafetyAI:
             return
         if not isinstance(msg, dict):
             return
-        if msg.get("type") == "warning" and isinstance(msg.get("say"), str):
+        if msg.get("event") == "simulation_started":
+            self.over = False
+        elif msg.get("event") == "simulation_ended":
+            self.over = True
+            self.voice.drop_above(COACH_PRIORITY)                    # no more warnings; the tips are finished
+            log.info("run ended: no more warnings; the tips are finished, then only the debrief")
+        elif msg.get("type") == "warning" and isinstance(msg.get("say"), str):
+            if self.over:
+                return
             self.last_warning_at = time.monotonic()
             self.voice.drop_below(COACH_PRIORITY + 1)                # waiting tips are out of date now
             self.voice.say(msg["say"], int(msg.get("priority", 1)), WARNING_MAX_AGE_S)
@@ -81,13 +94,18 @@ class SafetyAI:
         if ans is None:
             log.warning("%s %s: no answer from the LLM, nothing said", kind, req_id)
             return
+        if kind == "tip" and self.debrief_at > asked_at:   # never after the end-of-drive analysis
+            log.info("tip %s dropped: the debrief is already being spoken (%s)", req_id, ans["say"])
+            return
         if kind == "tip" and not ans["speak"]:
             log.info("tip %s: the LLM found nothing worth saying", req_id)
         elif kind == "tip" and self.last_warning_at > asked_at:
             log.info("tip %s dropped: a warning came in meanwhile (%s)", req_id, ans["say"])
             return
         else:
-            self.voice.say(ans["say"], COACH_PRIORITY, COACH_MAX_AGE_S)
+            if kind == "debrief":
+                self.debrief_at = time.monotonic()
+            self.voice.say(ans["say"], COACH_PRIORITY, COACH_MAX_AGE_S)   # after the tips still waiting (oldest first)
         try:
             await ws.send(json.dumps({"type": "coach_result", "request_id": req_id, "kind": kind, **ans}))
         except ConnectionClosed:

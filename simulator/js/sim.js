@@ -26,7 +26,7 @@ function planBehavior(src) {     // src = a placed setup object; returns a NEW s
 function stepObject(o, dt) {
   if (o.mode === "overtake") {
     o.y_m += o.cruise * dt;
-    if (o.y_m >= OVERTAKE_DONE_Y_M) o.finished = true;
+    if (o.y_m - TYPES[o.type].l / 2 > VW.mini.yAhead) o.finished = true;   // fully past the minimap's top edge
   } else if (o.mode === "cross" && !o.finished) {
     const left = Math.abs(o.targetX - o.x_m), step = o.cruise * dt;
     if (left <= step) {
@@ -62,7 +62,7 @@ function setLookCenter(show) {
 function startSimulation() {
   if (sim || objects.size === 0) return;
   sim = { phase: "countdown", phaseT: 0, t: 0, objs: [...objects.values()].map(planBehavior),
-          ticks: 0, allDoneT: null, tickTimer: 0 };
+          ticks: 0, tickTimer: 0 };
   document.body.classList.add("sim");
   resizeView();
   setBig(String(COUNTDOWN_S));
@@ -76,7 +76,7 @@ function startSimulation() {
 function beginDriving() {
   sim.phase = "driving"; sim.t = 0;
   setLookCenter(false);
-  setGazeActive(true);                                         // gaze.js: badge + highlight from now on
+  setGazeActive(true);                                         // gaze.js: the highlight from now on
   emit({ event: "simulation_started", timestamp: nowS() });
   sendTick();                                                  // first snapshot right at GO
   sim.tickTimer = setInterval(sendTick, 1000 / TICK_HZ);       // 10 Hz, decoupled from rendering
@@ -120,8 +120,9 @@ function update(dt) {
   sim.t += dt;
   setBig(sim.t < 1 ? "GO" : "", true);
   for (const o of sim.objs) stepObject(o, dt);
-  if (sim.allDoneT === null && sim.objs.every(o => o.finished)) sim.allDoneT = sim.t;
-  if (sim.allDoneT !== null && sim.t >= sim.allDoneT + END_DELAY_S) endSimulation();
+  // every object drove off the minimap (only side-lane vehicles can): end now; otherwise at MAX_RUN_S
+  const allGone = sim.objs.every(o => o.mode === "overtake" && o.finished);
+  if (allGone || sim.t >= MAX_RUN_S) endSimulation();
 }
 
 // simulation_tick: 10 Hz, one message with the position of EVERY object on the map, whether or not

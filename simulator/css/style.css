@@ -76,17 +76,6 @@ body.sim #scene, body.sim #toolbar, body.sim #hint { display: none; }
 #abort:hover { background: #5a2020; }
 body.sim #abort { display: block; }
 
-/* Gaze badge: only while driving (GO to the end: body.driving), at the bottom of the driving view
-   (the minimap panel is on the right, the abort button bottom-left). Hidden in setup, the countdown and after the end. */
-#gaze-badge { position: fixed; right: 12px; bottom: 152px; z-index: 95; max-width: 340px; display: none;
-  padding: 8px 12px; border-radius: 10px; border: 2px solid #8a8f9c; background: rgba(12,14,18,.85);
-  pointer-events: none; }
-body.sim #gaze-badge { bottom: 12px; right: calc(var(--mini-w) + 12px); }
-body.driving #gaze-badge { display: block; }
-#gaze-badge .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;
-  background: #8a8f9c; vertical-align: -1px; }
-#gaze-badge b { font-size: 17px; }
-
 #done { position: fixed; inset: 0 var(--mini-w) 0 0; z-index: 90; display: none; align-items: center; justify-content: center;
   background: rgba(0,0,0,.45); }
 #done.show { display: flex; }

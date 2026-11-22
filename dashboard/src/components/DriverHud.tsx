@@ -48,6 +48,12 @@ const ICONS: Record<IconName, ReactNode> = {
       <path d="m8 12 3 3 5-6" />
     </>
   ),
+  pause: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 9v6M14 9v6" />
+    </>
+  ),
 };
 
 const ARROW_ROTATION: Record<Arrow, number> = {

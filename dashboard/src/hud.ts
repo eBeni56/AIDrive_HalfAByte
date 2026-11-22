@@ -3,6 +3,8 @@
 // Every 200 ms `pick()` lists what is wrong right now (activeIssues, highest priority first) and decides what
 // to show: a new problem with a HIGHER priority replaces the shown one at once; otherwise the shown message
 // stays for at least HOLD_MS (even if its problem is already over), so the display never flickers.
+// Outside a simulation nothing is tracked: before the first one a still message (IDLE); after the end the last
+// message stays on the display (the data of the drive is kept until the next one starts).
 import { useEffect, useState } from "react";
 import { STALE_MS } from "./config";
 import { seconds } from "./format";
@@ -13,7 +15,7 @@ const HOLD_MS = 3000; // a message stays at least this long
 const NO_FACE_MS = 1000; // the camera sees no face this long -> "The camera can't see you"
 
 type Level = "ok" | "info" | "warn" | "danger";
-export type IconName = "alarm" | "obstacle" | "phone" | "eye" | "face" | "camera" | "check";
+export type IconName = "alarm" | "obstacle" | "phone" | "eye" | "face" | "camera" | "check" | "pause";
 
 interface Issue {
   key: string; // the same problem keeps its key while it lasts (its detail may change)
@@ -29,6 +31,7 @@ interface Issue {
 let driver: DriverState | null = null;
 let driverAt = 0;
 let connected = false;
+let running = false; // a simulation runs (simulation_started .. simulation_ended)
 let noFaceSince: number | null = null;
 // simulator objects the driver still has to look at: object_id -> what, where, until when
 const pending = new Map<string, { type: string; zone: string; until: number }>();
@@ -36,6 +39,7 @@ const pending = new Map<string, { type: string; zone: string; until: number }>()
 export const hudInput = {
   connection(ok: boolean) {
     connected = ok;
+    if (!ok) running = false;
   },
   driverState(s: DriverState) {
     driver = s;
@@ -46,6 +50,12 @@ export const hudInput = {
   simulation(msg: { event?: string }) {
     if (msg.event === "simulation_started" || msg.event === "simulation_ended") {
       pending.clear();
+      running = msg.event === "simulation_started";
+      if (running) {
+        driver = null; // a new run starts from fresh camera data
+        noFaceSince = null;
+        shownAt = 0; // the message of the last drive gives way at once
+      }
       return;
     }
     if (msg.event !== "attention_event") return;
@@ -122,9 +132,16 @@ function activeIssues(now: number): Issue[] {
 }
 
 const ALL_GOOD: Issue = { key: "ok", priority: 0, level: "ok", icon: "check", title: "All good", detail: "Drive safely" };
+const IDLE: Issue = {
+  key: "idle", priority: 0, level: "info", icon: "pause",
+  title: "No simulation running", detail: "Start a simulation in the simulator",
+};
+const NO_SERVER: Issue = {
+  key: "no-server", priority: 20, level: "info", icon: "camera", title: "No connection to the server", detail: "Reconnecting…",
+};
 
 // ------------------------------------------------------------------ what to show
-let shown: Issue = ALL_GOOD;
+let shown: Issue = IDLE;
 let shownAt = 0;
 
 /** Objects whose look window (+0.5 s) is over: not shown any more (the server sends "missed"). */
@@ -133,6 +150,12 @@ function forgetExpired(now: number): void {
 }
 
 export function pick(now: number): Issue {
+  if (!running) {
+    // outside a run nothing is tracked: the last message stays (IDLE before the first drive)
+    if (!connected) return shown.key === NO_SERVER.key ? shown : show(NO_SERVER, now);
+    if (shown.key === NO_SERVER.key) return show(IDLE, now);
+    return shown;
+  }
   forgetExpired(now);
   const list = activeIssues(now);
   const top = list[0] ?? ALL_GOOD;
