@@ -8,7 +8,7 @@ where the server says the driver is looking. Plain HTML/CSS/JS, no build step.
 
 * **With Docker** (`start.bat` in the repository root, or `docker compose up`): <http://localhost:8080>. nginx
   serves the page and passes its WebSocket (`/ws`) to the server.
-* **Without Docker**: start the server (`server_simulator_lookingdir/`, see its README) and open `index.html`
+* **Without Docker**: start the server (`central_point/`, see its README) and open `index.html`
   directly in the browser; it then connects to `ws://localhost:8765` (`WS_URL` in `js/config.js`).
 
 ## Use

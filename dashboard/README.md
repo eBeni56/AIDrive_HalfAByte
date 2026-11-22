@@ -32,7 +32,7 @@ one replaces it sooner.
 ```
 
 * **WebSocket to the server.** After connecting it sends one message, `{"type": "hello", "role": "dashboard"}`;
-  from then on the server forwards everything above (fields: [the server README](../server_simulator_lookingdir/README.md)).
+  from then on the server forwards everything above (fields: [the server README](../central_point/README.md)).
   It reconnects every 2 s if the server is not running or restarts. Of `driver_state` only the detections,
   `quality.face_detected` and `calibration.status` are used.
 * **Camera image.** An `<img>` of the driver monitor's MJPEG stream (`camera_stream` in

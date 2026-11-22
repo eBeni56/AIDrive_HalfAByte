@@ -13,7 +13,7 @@ name: aidrive
 
 services:
   server:
-    build: ./server_simulator_lookingdir
+    build: ./central_point
     environment:
       HOST: 0.0.0.0
       PORT: 8765

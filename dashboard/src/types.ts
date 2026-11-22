@@ -1,5 +1,5 @@
 // The fields of the server's messages that the dashboard reads (the messages carry more). Full driver_state
-// reference: driver_monitor/docs/detection-schema.md; the attention messages: server_simulator_lookingdir/README.md.
+// reference: driver_monitor/docs/detection-schema.md; the attention messages: central_point/README.md.
 
 /** EYES_CLOSED, DISTRACTED (looking up or down: none of the 8 regions) or PHONE_USE. */
 interface Detection {
@@ -38,7 +38,8 @@ export interface AttentionEvent {
   object_id: string;
   type: string;
   zone: string | null; // null: farther than 30 m (no zone)
-  window_s: number | null; // seconds the driver has to look after the object entered the zone
+  window_s: number | null; // seconds the driver has to look after the object entered the zone; null: no need
+  // to look (no zone, or moving away from the car)
   reaction_s: number | null; // only for "noticed"
 }
 

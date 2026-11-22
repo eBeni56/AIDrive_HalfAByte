@@ -14,6 +14,11 @@ function thing(e: { type: string; object_id: string }): string {
   return `${e.type} (${e.object_id})`;
 }
 
+/** "the driver has 2 s to look", or why there is no timer (window_s null: moving away, no look needed). */
+function lookTime(e: AttentionEvent): string {
+  return e.window_s == null ? "moving away, no need to look" : `the driver has ${seconds(e.window_s)} to look`;
+}
+
 // ------------------------------------------------------------------ statistics of one run
 // Collected while a simulation runs, shown as a small table when it ends.
 type GazeKind = "road" | "mirrors" | "elsewhere" | "closed" | "nodata";
@@ -87,7 +92,7 @@ export function onSimulation(msg: { event?: string }): void {
         "SIM",
         "sim",
         zone
-          ? `New ${thing(e)} appeared in the ${zone} – the driver has ${seconds(e.window_s)} to look`
+          ? `New ${thing(e)} appeared in the ${zone} – ${lookTime(e)}`
           : `New ${thing(e)} appeared, still far away (no zone yet)`,
       );
     } else if (e.kind === "zone_change") {
@@ -95,7 +100,7 @@ export function onSimulation(msg: { event?: string }): void {
         "SIM",
         "sim",
         zone
-          ? `The ${thing(e)} moved into the ${zone} – the driver has ${seconds(e.window_s)} to look`
+          ? `The ${thing(e)} moved into the ${zone} – ${lookTime(e)}`
           : `The ${thing(e)} moved out of range (no zone)`,
       );
     } else if (e.kind === "noticed") {

@@ -7,7 +7,7 @@ function absoluteWs(url: string): string {
   return `${scheme}://${window.location.host}${url}`;
 }
 
-/** The server in server_simulator_lookingdir/ (same one the simulator uses). */
+/** The server in central_point/ (same one the simulator uses). */
 export const WS_URL = absoluteWs(import.meta.env.VITE_WS_URL ?? "ws://localhost:8765");
 
 /** The driver monitor's camera preview with its overlay (MJPEG, camera_stream in its config). */

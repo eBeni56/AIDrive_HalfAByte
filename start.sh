@@ -3,6 +3,7 @@
 #   - server, simulator, dashboard: Docker ("docker compose up", logs here, Ctrl+C stops everything)
 #   - driver monitor (webcam): on this computer in the background (Docker Desktop can't reach a webcam);
 #     its camera image with the markings is shown on the dashboard
+#   - safety_ai (speaks the warnings and the LLM coach's tips / debrief): on this computer in the background
 #   - the dashboard and the simulator open in the browser as soon as they answer
 # Extra arguments go to "docker compose up". DM_ARGS goes to the driver monitor, e.g.  DM_ARGS="--camera 0" ./start.sh
 cd "$(dirname "$0")" || exit 1
@@ -30,7 +31,30 @@ $DM_RUN --no-window --scroll $DM_ARGS > "$ROOT/driver_monitor.log" 2>&1 &
 DM_PID=$!
 cd "$ROOT" || exit 1
 echo "Driver monitor running in the background, log: driver_monitor.log"
-trap 'kill $DM_PID 2>/dev/null' EXIT INT TERM
+
+# --- safety_ai: speaks the warnings and the LLM coach (Docker can't reach the speakers). NO_SAFETY_AI=1 skips it,
+#     SAI_ARGS goes to it (e.g. SAI_ARGS="--mute" or "--no-llm" or "--voice male_1")
+SAI_PID=
+if [ "${NO_SAFETY_AI:-}" != "1" ]; then
+  cd safety_ai || exit 1
+  if [ ! -x .venv/bin/python ]; then
+    echo "Setting up safety_ai in safety_ai/.venv - first run only, takes a minute ..."
+    if command -v uv >/dev/null 2>&1; then
+      uv venv --python 3.12 .venv -q && uv pip install --python .venv/bin/python -q -r requirements.txt
+    else
+      PY=$(command -v python3.12 || command -v python3)
+      "$PY" -m venv .venv && .venv/bin/python -m pip install -q --disable-pip-version-check -r requirements.txt
+    fi || { echo "safety_ai could not be set up: running without the voice."; rm -rf .venv; }
+  fi
+  if [ -x .venv/bin/python ]; then
+    # shellcheck disable=SC2086  # SAI_ARGS is meant to be split into words
+    .venv/bin/python main.py $SAI_ARGS > "$ROOT/safety_ai.log" 2>&1 &
+    SAI_PID=$!
+    echo "safety_ai running in the background, log: safety_ai.log"
+  fi
+  cd "$ROOT" || exit 1
+fi
+trap 'kill $DM_PID $SAI_PID 2>/dev/null' EXIT INT TERM
 
 # --- open the pages once they answer
 port() {  # environment variable, else the root .env, else the default
