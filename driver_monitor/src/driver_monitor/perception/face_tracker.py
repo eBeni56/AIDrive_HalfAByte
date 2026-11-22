@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 
 from driver_monitor.config import LandmarkerConfig
+from driver_monitor.perception.mediapipe_tasks import Timestamps, model_file
 
 
 @dataclass(slots=True)
@@ -32,13 +33,7 @@ class FaceTracker:
     """
 
     def __init__(self, config: LandmarkerConfig, base_dir: Path | None = None) -> None:
-        model = Path(config.model_path)
-        if not model.is_absolute() and base_dir is not None:
-            model = base_dir / model
-        if not model.exists():
-            raise FileNotFoundError(
-                f"Face Landmarker model not found at {model}. Run: uv run python tools/download_model.py"
-            )
+        model = model_file(config.model_path, base_dir, "Face Landmarker")
         vision = mp.tasks.vision
         options = vision.FaceLandmarkerOptions(
             base_options=mp.tasks.BaseOptions(model_asset_path=str(model)),
@@ -51,11 +46,10 @@ class FaceTracker:
             output_facial_transformation_matrixes=True,
         )
         self._landmarker = vision.FaceLandmarker.create_from_options(options)
-        self._last_ts_ms = -1
+        self._timestamps = Timestamps()
 
     def process(self, frame_bgr: npt.NDArray[np.uint8], t_s: float) -> FaceObservation | None:
-        ts_ms = max(round(t_s * 1000.0), self._last_ts_ms + 1)  # must strictly increase
-        self._last_ts_ms = ts_ms
+        ts_ms = self._timestamps.ms(t_s)
         h, w = frame_bgr.shape[:2]
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         result = self._landmarker.detect_for_video(
@@ -82,9 +76,3 @@ class FaceTracker:
 
     def close(self) -> None:
         self._landmarker.close()
-
-    def __enter__(self) -> FaceTracker:
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self.close()

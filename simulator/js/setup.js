@@ -56,12 +56,15 @@ for (const type of Object.keys(TYPES)) {
   toolbar.insertBefore(btn, document.getElementById("clear"));
 }
 
-// A few static grass tufts (decorative only)
+// A few static grass tufts (decorative only). Spot i: 0..1 across and down the grass, deterministic
+// pseudo-random; the minimap (render.js) uses the same spots.
+function tuftSpot(i) { return { fx: (i * 0.37 + 0.11) % 1, fy: (i * 0.61 + 0.05) % 1 }; }
 for (let i = 0; i < 16; i++) {
   const t = document.createElement("div");
+  const { fx, fy } = tuftSpot(i);
   t.className = "tuft";
-  t.dataset.fx = ((i * 0.37 + 0.11) % 1).toFixed(3);   // deterministic pseudo-random spots
-  t.dataset.fy = ((i * 0.61 + 0.05) % 1).toFixed(3);
+  t.dataset.fx = fx.toFixed(3);
+  t.dataset.fy = fy.toFixed(3);
   scene.insertBefore(t, road);
 }
 

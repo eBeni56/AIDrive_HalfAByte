@@ -5,5 +5,10 @@
 websocket:
   enabled: true
   url: "ws://server:8765"
-  max_rate_hz: 0        # 0 = every frame (~30/s)
   reconnect_s: 2.0      # keeps reconnecting if the server starts later or restarts
+
+camera_stream:
+  enabled: true
+  host: "0.0.0.0"       # reachable through the port published in compose.yml
+  port: 8090
+  fps: 15

@@ -44,7 +44,7 @@ def _server(port: int, received: list[dict[str, object]]) -> Iterator[Server]:
 def _states(n: int) -> list[DriverState]:
     mon = DriverMonitor(AppConfig(), calibrate=False)
     return [
-        mon.process_features(FrameFeatures(i / 30, 1280, 720, 120.0, None, 0), i / 30).state for i in range(n)
+        mon.process_features(FrameFeatures(120.0, None, 0), i / 30).state for i in range(n)
     ]
 
 
@@ -63,8 +63,8 @@ def test_streams_driver_state_json() -> None:
         sender = WebSocketSender(WebSocketConfig(url=f"ws://localhost:{port}", reconnect_s=0.1))
         try:
             assert _wait(lambda: sender.connected)
-            for i, s in enumerate(_states(10)):
-                sender.send(s, i / 30)
+            for s in _states(10):
+                sender.send(s)
             assert _wait(lambda: len(received) == 10)
         finally:
             sender.close()
@@ -79,13 +79,13 @@ def test_no_server_never_blocks_and_reconnects_later() -> None:
     try:
         states = _states(5)
         start = time.perf_counter()
-        for i, s in enumerate(states):
-            sender.send(s, i / 30)  # nobody listening: dropped, returns at once
+        for s in states:
+            sender.send(s)  # nobody listening: dropped, returns at once
         assert time.perf_counter() - start < 0.1
         assert _wait(lambda: any("cannot connect" in e for e in sender.events()))
         with _server(port, received):  # the server starts later: the sender connects by itself
             assert _wait(lambda: sender.connected)
-            sender.send(states[-1], 1.0)
+            sender.send(states[-1])
             assert _wait(lambda: len(received) == 1)
     finally:
         sender.close()
@@ -115,18 +115,3 @@ def test_messages_from_the_server_do_not_stall_the_connection() -> None:
             sender.close()
             server.shutdown()
             th.join(timeout=3)
-
-
-def test_rate_limit() -> None:
-    port, received = _free_port(), []
-    with _server(port, received):
-        sender = WebSocketSender(WebSocketConfig(url=f"ws://localhost:{port}", max_rate_hz=10.0))
-        try:
-            assert _wait(lambda: sender.connected)
-            for i, s in enumerate(_states(30)):  # 1 s of frames at 30 fps
-                sender.send(s, i / 30)
-            assert _wait(lambda: len(received) >= 10)
-            time.sleep(0.2)
-        finally:
-            sender.close()
-    assert len(received) == 10

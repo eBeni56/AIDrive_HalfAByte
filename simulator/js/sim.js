@@ -7,16 +7,15 @@ function planBehavior(src) {     // src = a placed setup object; returns a NEW s
   const jitter = (1 + (Math.random() * 2 - 1) * SPEED_JITTER) * speedFactor();   // x Speed button
   const o = { id: src.id, type: src.type, x_m: src.x_m, y_m: src.y_m,
               x0: src.x_m, y0: src.y_m,   // setup position, for the minimap trail
-              mode: "parked", cruise: 0, speed: 0, targetX: src.x_m, finished: false,
-              walked: 0,          // meters walked, only drives the leg animation
-              vis: {} };          // view name -> bool, rewritten by every rendered frame
+              mode: "parked", cruise: 0, targetX: src.x_m, finished: false,
+              walked: 0 };        // meters walked, only drives the leg animation
   if (b.kind === "pedestrian") {
     const side = src.x_m <= 0 ? -1 : 1;                      // nearer road edge (tie -> left)
     const edge = ROAD_HALF_M + PED_GRASS_OFFSET_M;
     o.mode = "cross"; o.x_m = side * edge; o.targetX = -side * edge;
-    o.cruise = o.speed = b.speed_mps * jitter;
+    o.cruise = b.speed_mps * jitter;
   } else if (laneFromX(src.x_m) !== "center") {
-    o.mode = "overtake"; o.cruise = o.speed = b.speed_mps * jitter;
+    o.mode = "overtake"; o.cruise = b.speed_mps * jitter;
   } else {
     o.mode = "parked"; o.finished = true;
   }
@@ -31,7 +30,7 @@ function stepObject(o, dt) {
   } else if (o.mode === "cross" && !o.finished) {
     const left = Math.abs(o.targetX - o.x_m), step = o.cruise * dt;
     if (left <= step) {
-      o.x_m = o.targetX; o.walked += left; o.finished = true; o.speed = 0;
+      o.x_m = o.targetX; o.walked += left; o.finished = true;
       return;
     }
     o.x_m += Math.sign(o.targetX - o.x_m) * step; o.walked += step;
@@ -132,7 +131,7 @@ function frame(now) {
   const dt = Math.min(0.1, Math.max(0, (now - lastNow) / 1000));
   lastNow = now;
   update(dt);
-  render();                                                    // also refreshes every o.vis
+  render();
   rafId = requestAnimationFrame(frame);
 }
 

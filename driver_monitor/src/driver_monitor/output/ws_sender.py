@@ -17,33 +17,27 @@ from websockets.sync.client import ClientConnection, connect
 from driver_monitor.config import WebSocketConfig
 from driver_monitor.output.schema import DriverState
 
+QUEUE_SIZE = 30  # messages buffered while sending is slower than the camera (the oldest are dropped)
+CONNECT_TIMEOUT_S = 3.0
+
 
 class WebSocketSender:
     def __init__(self, cfg: WebSocketConfig) -> None:
         self.cfg = cfg
-        self.url = cfg.url
-        self._queue: queue.Queue[str] = queue.Queue(maxsize=max(1, cfg.queue_size))
+        self._queue: queue.Queue[str] = queue.Queue(maxsize=QUEUE_SIZE)
         self._events: queue.Queue[str] = queue.Queue()
         self._stop = threading.Event()
         self.connected = False
         self.sent = 0
         self.dropped = 0
-        self._next_t: float | None = None  # rate limit: earliest time of the next message
         self._thread = threading.Thread(target=self._run, name="websocket-sender", daemon=True)
         self._thread.start()
 
     # ------------------------------------------------------------------ camera thread
-    def send(self, state: DriverState, t: float) -> None:
-        """Queue one message (non-blocking). Skipped while disconnected or above max_rate_hz."""
+    def send(self, state: DriverState) -> None:
+        """Queue one message (non-blocking). Skipped while disconnected."""
         if not self.connected:
             return
-        if self.cfg.max_rate_hz > 0:  # send on a fixed time grid: max_rate_hz on average, no bursts
-            interval = 1.0 / self.cfg.max_rate_hz
-            if self._next_t is not None and t < self._next_t - 1e-3:
-                return
-            self._next_t = (
-                t + interval if self._next_t is None else max(self._next_t + interval, t + interval / 2)
-            )
         msg = state.model_dump_json()
         try:
             self._queue.put_nowait(msg)
@@ -73,13 +67,13 @@ class WebSocketSender:
         failing = False
         while not self._stop.is_set():
             try:
-                with connect(self.url, open_timeout=self.cfg.connect_timeout_s, close_timeout=1.0) as ws:
+                with connect(self.cfg.url, open_timeout=CONNECT_TIMEOUT_S, close_timeout=1.0) as ws:
                     failing = False
                     self._serve(ws)  # handles its own errors; returns when stopped or the link is lost
             except Exception as e:  # server not running, bad address, timeout ...
                 if not failing:
                     self._events.put(
-                        f"WebSocket: cannot connect to {self.url} ({_short(e)}) - retrying every "
+                        f"WebSocket: cannot connect to {self.cfg.url} ({_short(e)}) - retrying every "
                         f"{self.cfg.reconnect_s:g} s"
                     )
                     failing = True
@@ -90,7 +84,7 @@ class WebSocketSender:
         while not self._queue.empty():  # never send stale messages from before this connection
             self._queue.get_nowait()
         self.connected = True
-        self._events.put(f"WebSocket: connected to {self.url}, streaming driver_state messages")
+        self._events.put(f"WebSocket: connected to {self.cfg.url}, streaming driver_state messages")
         try:
             while not self._stop.is_set():
                 _discard_incoming(ws)
@@ -101,7 +95,7 @@ class WebSocketSender:
                 ws.send(msg)
                 self.sent += 1
         except Exception as e:
-            self._events.put(f"WebSocket: connection to {self.url} lost ({_short(e)}) - reconnecting")
+            self._events.put(f"WebSocket: connection to {self.cfg.url} lost ({_short(e)}) - reconnecting")
         finally:
             self.connected = False
 

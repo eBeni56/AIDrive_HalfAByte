@@ -1,4 +1,4 @@
-"""Pure geometric features on PIXEL coordinates (never on normalized ones - see tutorial 10.5)."""
+"""Pure geometric features on PIXEL coordinates (normalized ones have different x and y scales)."""
 
 from __future__ import annotations
 
@@ -24,15 +24,6 @@ def eye_aspect_ratio(pts: Points, idx: Sequence[int]) -> float:
     return (_dist(p[1], p[5]) + _dist(p[2], p[4])) / (2.0 * horizontal)
 
 
-def mouth_aspect_ratio(pts: Points, pairs: Sequence[tuple[int, int]], corners: tuple[int, int]) -> float:
-    """Inner-lip MAR: mean vertical opening / mouth width."""
-    horizontal = _dist(pts[corners[0]], pts[corners[1]])
-    if horizontal < 1e-6:
-        return 0.0
-    vertical = sum(_dist(pts[a], pts[b]) for a, b in pairs) / len(pairs)
-    return vertical / horizontal
-
-
 def iris_position(pts: Points, corner_a: int, corner_b: int, iris: int) -> tuple[float, float]:
     """(t, s) of the iris centre in the eye.
 
@@ -48,13 +39,6 @@ def iris_position(pts: Points, corner_a: int, corner_b: int, iris: int) -> tuple
     normal = np.array([-ab[1], ab[0]]) / length  # ab rotated +90 deg = "down" in image coordinates
     s = float(np.dot(c - (a + b) / 2.0, normal) / length)
     return t, s
-
-
-def iris_visibility(pts: Points, upper: int, lower: int, ring: tuple[int, int, int, int]) -> float:
-    """Lid aperture / iris diameter. ~0.6-1.0 open, near 0 closed (iris points are predicted even then)."""
-    aperture = _dist(pts[upper, :2], pts[lower, :2])
-    diameter = 0.5 * (_dist(pts[ring[0], :2], pts[ring[2], :2]) + _dist(pts[ring[1], :2], pts[ring[3], :2]))
-    return aperture / diameter if diameter > 1e-6 else 0.0
 
 
 def matrix_to_euler_deg(matrix: npt.ArrayLike) -> tuple[float, float, float]:

@@ -16,7 +16,7 @@ class JsonlWriter:
         self._n = 0
 
     def write(self, state: DriverState) -> None:
-        self._f.write(state.model_dump_json(exclude_none=False))
+        self._f.write(state.model_dump_json())
         self._f.write("\n")
         self._n += 1
         if self._n % 30 == 0:
