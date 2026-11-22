@@ -148,6 +148,12 @@ Every attention event has `looking`: true when the gaze already is in such a reg
 look is complete after 0.15 s it is `noticed`: no warning, no voice. Only a road user that was not looked at in
 time is `missed` and warned about.
 
+**Seen on a side** (`SEEN_SIDE`): a road user the driver has looked at (0.15 s) in the left mirror zone or the left
+blind spot counts as seen on the left, with or without a running window; the same on the right. While it moves
+between those two zones (coming up in the mirror, then beside us) it needs no new look: its `zone_change` has
+`window_s` null and `looking` true, so no "look left" message and no warning. Once it leaves that side (it passes us
+to the front, or goes out of every zone) it is forgotten and needs a look again.
+
 **Needs a look**: always in a blind spot (`side_*`) and in our lane ahead (`front_center`); in every other zone only
 while it is getting closer, to the car or sideways to our lane (by at least 0.1 m over the last 0.4 s of ticks).
 So an overtaking car coming up behind us gets a window, the same car ahead of us and pulling away does not; a

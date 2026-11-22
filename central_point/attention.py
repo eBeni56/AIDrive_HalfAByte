@@ -19,7 +19,8 @@ attention_event kinds: appeared (an object is seen for the first time in this ru
 moved into another zone), noticed (looked at in time; reaction_s), missed (not looked at in time).
 window_s is null when there is no timer: outside every zone, or the object does not need a look
 (needs_look false). distance_m: meters from the ego car's center. looking: the driver's gaze is already in an
-accepted region for it (the dashboard then shows no "look there" message: nothing to warn about).
+accepted region for it, or it was already seen on this side (SEEN_SIDE; then window_s is null: no timer). The
+dashboard then shows no "look there" message: nothing to warn about.
 
   start(now)                       simulation_started: forget everything
   on_tick(now, objects, region)    simulation_tick: zone changes (objects need object_id, type,
@@ -99,6 +100,12 @@ LOOK_DWELL_S = 0.15
 
 # Zones where an object always needs a look; in the others only while it is getting closer.
 ALWAYS_LOOK = {"side_left", "side_right", "front_center"}
+
+# Seen on a side: once the driver has looked (LOOK_DWELL_S) at an object in one of these zones through a region
+# that sees it - with or without a running timer - it counts as seen on that side. While it moves between the
+# zones of that side (behind-left in the mirror <-> the left blind spot) it needs no new look: no timer, no
+# warning. Leaving the side (passing us to the front, or out of every zone) forgets it.
+SEEN_SIDE = {"mirror_left": "left", "side_left": "left", "mirror_right": "right", "side_right": "right"}
 PX_PER_M = 31.43
 CLOSING_WINDOW_S = 0.4       # compare with the position this long ago (4 ticks at 10 Hz)
 CLOSING_M = 0.1              # closer by at least this much (to the car, or sideways to our lane)
@@ -151,6 +158,7 @@ class Tracked:
     missed: bool = False
     look_since: float | None = None  # gaze continuously in ACCEPTED_LOOKS[zone] since (>= entry)
     undecided: str | None = None     # "appeared" / "zone_change" while needs_look is not known yet
+    seen_since: float | None = None  # gaze in ACCEPTED_LOOKS[zone] since (for SEEN_SIDE, timer or not)
 
 
 class Attention:
@@ -163,6 +171,7 @@ class Attention:
         self.history = {}        # object_id -> deque of (now, x_px, y_px), the last HISTORY_S
         self.reactions = []      # reaction_s of every "noticed" event
         self.misses = []         # summary entries of every "missed" event
+        self.seen_side = {}      # object_id -> "left" / "right": already seen on that side (SEEN_SIDE)
 
     # ---- simulator events ----
 
@@ -194,18 +203,26 @@ class Attention:
                     self._decide(old, h, now, region, old.undecided, out)
                 continue
             # new object or new zone: fresh state (a running, unnoticed timer is dropped)
+            if self.seen_side.get(obj.object_id) not in (None, SEEN_SIDE.get(zone)):
+                del self.seen_side[obj.object_id]   # left the side it was seen on: a new look is needed
             t = Tracked(obj.object_id, obj.type, zone, now, None)
             current[obj.object_id] = t
             self._decide(t, h, now, region, "appeared" if old is None else "zone_change", out)
         self.objects = current
         for oid in [oid for oid in self.history if oid not in current]:
             del self.history[oid]              # gone from the map: forget its positions
+            self.seen_side.pop(oid, None)
         return out
 
     def _decide(self, t, history, now, region, kind, out):
         """Start the timer of `t` if it needs a look; announce it (`kind` event) once that is known."""
         if t.zone is None:
             out.append(self._event(kind, t, now))
+            return
+        if SEEN_SIDE.get(t.zone) and self.seen_side.get(t.object_id) == SEEN_SIDE[t.zone]:
+            t.undecided = None                     # already seen on this side (e.g. in the mirror): no new look
+            log.info("%s already seen on the %s: no new look needed in %s", t.object_id, SEEN_SIDE[t.zone], t.zone)
+            out.append(self._event(kind, t, now, seen=True))
             return
         need = needs_look(t.zone, history, now)
         if need is None:
@@ -254,6 +271,7 @@ class Attention:
             return []
         out = []
         for t in self.objects.values():
+            self._track_seen(t, now, region)
             if t.deadline is None or t.noticed or t.missed:
                 continue
             if region in ACCEPTED_LOOKS[t.zone]:
@@ -276,9 +294,23 @@ class Attention:
                 out.append(ev)
         return out
 
+    def _track_seen(self, t, now, region):
+        """SEEN_SIDE: the gaze held on a region that sees `t` for LOOK_DWELL_S marks it seen on its side."""
+        side = SEEN_SIDE.get(t.zone)
+        if side is None or self.seen_side.get(t.object_id) == side:
+            return
+        if region not in ACCEPTED_LOOKS[t.zone]:
+            t.seen_since = None
+            return
+        if t.seen_since is None:
+            t.seen_since = now
+        if now - t.seen_since >= LOOK_DWELL_S - _EPS:
+            self.seen_side[t.object_id] = side
+            log.info("%s seen on the %s (%s)", t.object_id, side, region)
+
     # ---- messages ----
 
-    def _event(self, kind, t, at, reaction_s=None):
+    def _event(self, kind, t, at, reaction_s=None, seen=False):
         """attention_event for object `t`; `at` = when it happened (monotonic seconds)."""
         h = self.history.get(t.object_id)
         dist = round(distance_m(h[-1][1], h[-1][2]), 1) if h else None
@@ -286,7 +318,7 @@ class Attention:
               "t_s": round(at - self.started_at, 2), "kind": kind,
               "object_id": t.object_id, "type": t.type, "zone": t.zone,
               "window_s": WINDOW_S[t.zone] if t.deadline is not None else None,
-              "reaction_s": reaction_s, "distance_m": dist, "looking": t.look_since is not None}
+              "reaction_s": reaction_s, "distance_m": dist, "looking": seen or t.look_since is not None}
         head = f"{ev['t_s']:.2f} s {t.object_id} {t.type}"
         if kind in ("appeared", "zone_change"):
             where = "no zone"

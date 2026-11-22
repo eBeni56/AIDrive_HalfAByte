@@ -59,7 +59,7 @@ The mirror boxes are in `gaze_zones` in the config. The defaults are for the sim
 middle outwards, per side:
 * the road (|yaw| ≤ 20°): `ROAD` (the server's `front`: the whole windshield);
 * the side mirror: yaw 20°…60° up to pitch +30° (leftish / rightish, a head turned ~45° included);
-* beyond 60° (`LEFT_SIDE` / `RIGHT_SIDE`): head turned fully to the side (no rectangle in the simulator);
+* beyond 60° (`LEFT_SIDE` / `RIGHT_SIDE`): head turned fully to the side (the side window in the simulator);
 * the rear-view mirror is the top centre; looking down in the middle is `DOWN`.
 
 The road box is set by `gaze.on_road_*`.
