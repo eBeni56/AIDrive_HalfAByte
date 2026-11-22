@@ -13,9 +13,22 @@ the full statistics of the run and tells the driver what went wrong, how to do i
 the previous drives. The warnings themselves are decided by fixed rules, so they are instant and work offline; the
 LLM does what needs judgement and words. See [The AI](#the-ai-an-llm-driving-instructor-azure-gpt-41-mini).
 
+The pitch deck: [AI_HalfAByte.pptx](AI_HalfAByte.pptx).
+
 ## Run it
 
-Needs Docker Desktop and a webcam. From this folder:
+Needs:
+
+* **Docker Desktop**, running;
+* **a webcam** and **speakers**;
+* **[uv](https://docs.astral.sh/uv/)** (recommended: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`)
+  **or Python 3.12** (on Windows with the `py` launcher) for the two parts that run on this PC;
+* **internet on the first run** (the Docker images, the MediaPipe face and phone models, the ~65 MB voice
+  model) and for the LLM coach;
+* optional, for the LLM coach: an Azure OpenAI key. Once: `copy safety_ai\.env.example safety_ai\.env` and fill
+  in the endpoint and the key (see [The AI](#the-ai-an-llm-driving-instructor-azure-gpt-41-mini)).
+
+From this folder:
 
 ```
 start.bat            # Windows (macOS / Linux: ./start.sh)
@@ -52,9 +65,9 @@ Then:
    is warned at once (spoken and on the driver display). In a calm moment the coach may give a tip. Where you
    look is shown (the simulator's highlight, the dashboard's `CAM` lines) only from GO to the end of the drive;
    a blink does not hide it. The dashboard's camera image runs all the time.
-5. The simulation ends when every object has driven off the minimap, and in any case after 40 s. With it no new data is sent any more: no warnings are spoken (a tip already started is
-   finished), the dashboard's log, chat and driver display keep the drive's data and stand still, and the AI
-   gets nothing new. About 2-4 s later the AI's analysis of the drive is read out (about half a minute) and
+5. The simulation ends when every object has driven off the minimap, and in any case after 40 s. With it no
+   new data is sent any more: no warnings are spoken (a tip already started is finished), the dashboard's log,
+   chat and driver display keep the drive's data and stand still, and the AI gets nothing new. About 2-4 s later the AI's analysis of the drive is read out (about half a minute) and
    appears in the dashboard's chat.
 6. **Back to setup** (a new simulation) stops the voice at once, also in the middle of the analysis (it stays
    in the chat). Drive again: the next analysis compares the two.
@@ -178,6 +191,7 @@ Every WebSocket message is one JSON object, all on one port (8765). The exact fi
 ```
 docker compose up --build server simulator dashboard     # the Docker part
 cd driver_monitor
+uv run python tools/download_model.py                    # once: the face and the phone model
 uv run python -m driver_monitor                          # the webcam on this PC, with a preview window
 cd ..\safety_ai
 .venv\Scripts\python main.py                             # the voice + LLM coach (set up once by start.bat)
@@ -190,6 +204,18 @@ the Docker part.
 `driver_monitor/recordings/` (not in git), set `DM_VIDEO` in `.env`, then
 `docker compose --profile replay up --build`. Another video without restarting the rest:
 `docker compose run --rm -e DM_VIDEO=other.mp4 driver-monitor`.
+
+## Tests
+
+```
+cd driver_monitor
+uv run pytest                    # detectors, gaze zones, scenarios, schema file, WebSocket sender
+uv run ruff check .
+cd ..\central_point
+python -m unittest -v            # needs: pip install -r requirements.txt (some tests are outdated, see its README)
+cd ..\dashboard
+npm ci && npm run typecheck      # also checked by the Docker build
+```
 
 ## When something is off
 
