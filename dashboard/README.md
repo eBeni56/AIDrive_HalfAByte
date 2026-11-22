@@ -12,7 +12,7 @@ with Vite.
 
 **The Simulation log.** `SIM` (blue): the run started, a new object appeared, an object moved into another zone
 (and how long the driver has to look). `CAM` (teal): where the driver looks, when it changes and holds for
-0.3 s. `OK` (green): the driver looked at an object in time, with the reaction time. `MISSED` (red): did not look
+0.3 s (only during a run: the server sends `gaze_update` from GO to the end). `OK` (green): the driver looked at an object in time, with the reaction time. `MISSED` (red): did not look
 in time. `STATS` at the end: a small table of the run (time looking at the road, at the mirrors, elsewhere, eyes
 closed; objects noticed / missed and which; average reaction; how often the eyes were closed, the driver looked up
 or down, held a phone). `SYS` (grey): the connection to the server.
@@ -26,7 +26,7 @@ one replaces it sooner.
 ## What it receives and sends
 
 ```
-                      driver_state (10/s), gaze_update (10/s), simulation_started / _ended,
+                      driver_state (10/s), gaze_update (10/s, during a run), simulation_started / _ended,
  server :8765  ─────  attention_event, attention_summary, chat_message  ─────────────────────►  dashboard
  driver monitor ────  camera image: http://localhost:8090/stream.mjpg (MJPEG) ───────────────►  dashboard
 ```

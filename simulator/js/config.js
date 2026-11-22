@@ -45,7 +45,11 @@ const SPEED_STEPS = [1, 2, 0.25, 0.5];   // "Speed" button cycle (setup only); m
 const SPEED_JITTER = 0.10;        // each object gets speed * (1 +- up to 10%), re-rolled every run
 const OVERTAKE_DONE_Y_M = 80;     // side-lane vehicle is FINISHED this far ahead of ego
 const PED_GRASS_OFFSET_M = 1.5;   // pedestrian start/end point: this far outside the road edge
-const COUNTDOWN_S = 3;            // "3, 2, 1" (world frozen), then GO
+// Before GO: "Look at the centre of the screen" and a countdown (world frozen). Meanwhile the camera sets
+// the driver's straight-ahead look (the 0,0 of every gaze angle; it needs ~4 s: recenter_s in the driver
+// monitor's config), so keep this longer than that.
+const COUNTDOWN_S = 5;
+const COUNTDOWN_TEXT = "Look at the centre of the screen";
 const END_DELAY_S = 3;            // after the last object finishes, keep running this long, then freeze
 const TICK_HZ = 10;               // simulation_tick rate (independent of the render frame rate)
 

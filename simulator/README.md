@@ -16,7 +16,10 @@ where the server says the driver is looking. Plain HTML/CSS/JS, no build step.
 1. **Setup:** drag an icon from the toolbar onto the road (3 lanes). Drag a placed object to move it;
    right-click or double-click removes it; **Clear all** removes everything. **Speed** (1x → 2x → 0.25x → 0.5x)
    multiplies only the objects' speeds.
-2. **Start simulation** (at least one object): a 3-2-1 countdown with the world frozen, then **GO**.
+2. **Start simulation** (at least one object): "Look at the centre of the screen" and a 5-4-3-2-1 countdown
+   with the world frozen (`COUNTDOWN_S`); meanwhile the camera measures the driver's straight-ahead look again
+   (the 0,0 of the gaze). Then **GO**. The gaze badge and the highlight are shown only from GO to the end of
+   the drive (not in setup, the countdown or after the end).
 3. **Driving:** the first-person view (windshield, A-pillars, three mirrors) on the left, a top-down minimap on
    the right. **Esc** / **Abort** stops it.
 4. The run ends 3 s after the last object has finished; **Back to setup** keeps the placed objects.
@@ -27,11 +30,12 @@ their nearer side and cross the road (1.4 m/s).
 
 ## What it sends
 
-The simulator is a WebSocket **client**. Nothing is sent during setup or the countdown. A run is three kinds of
-messages, every one with `timestamp` (Unix seconds):
+The simulator is a WebSocket **client**. Nothing is sent during setup. A run is four kinds of messages, every
+one with `timestamp` (Unix seconds):
 
 | Message | When | Fields |
 |---|---|---|
+| `simulation_countdown` | at Start (the server asks the camera for the new straight-ahead look) | `event`, `timestamp` |
 | `simulation_started` | at GO | `event`, `timestamp` |
 | `simulation_tick` | 10 times per second while driving | `event`, `timestamp`, `objects` |
 | `simulation_ended` | at the end, or on Esc / Abort while driving | `event`, `timestamp` |
@@ -49,6 +53,7 @@ The scale is fixed (it does not depend on the window size): a lane is 110 px = 3
 spans `x_px` −165 … +165 (lanes split at ±55); the ego car spans `y_px` −71 … +71.
 
 ```json
+{"event": "simulation_countdown", "timestamp": 1763640005.0}
 {"event": "simulation_started", "timestamp": 1763640010.0}
 {"event": "simulation_tick", "timestamp": 1763640010.1, "objects": [
   {"object_id": "obj_1", "type": "car", "x_px": -110, "y_px": -380},
@@ -62,7 +67,9 @@ reconnects every 2 s.
 
 ## What it receives
 
-Only `gaze_update` from the server (anything else, and anything invalid, is ignored):
+Only `gaze_update` from the server (anything else, and anything invalid, is ignored). The server sends it only
+during a run, and the page shows it only while driving (GO to the end); at GO and at the end the last gaze is
+forgotten, so an old one is never shown:
 
 ```json
 {"event": "gaze_update", "timestamp": 1763640012.345, "status": "ok", "region": "mirror_left"}

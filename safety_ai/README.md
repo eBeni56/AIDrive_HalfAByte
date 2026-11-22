@@ -4,7 +4,8 @@ The car's voice and its LLM driving coach. One Python program on this PC (it nee
 can't reach). It connects to [central_point](../central_point/README.md) and
 
 * **speaks every warning at once**: central_point decides them (eyes closed, phone, looking away, a road user the
-  driver did not look at in time) and sends the line to say. A more urgent line interrupts a less urgent one; a
+  driver did not look at in time) and sends the line to say, only during a run (GO to the end), so nothing
+  interrupts the end-of-drive analysis. A more urgent line interrupts a less urgent one; a
   warning that could not be spoken within 2.5 s is dropped (an old warning is worse than none);
 * **writes and speaks the coaching**: when central_point sees a pattern (for example two cars on the right missed)
   it sends a `coach_request` with what happened; the LLM finds the point, writes a short tip and it is spoken. At

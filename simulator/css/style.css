@@ -65,18 +65,24 @@ body.sim #scene, body.sim #toolbar, body.sim #hint { display: none; }
   text-shadow: 0 0 40px rgba(0,0,0,.9), 0 8px 0 #000; }
 #countdown.show { display: flex; }
 #countdown.go { color: #4cff7a; }
+/* "Look at the centre of the screen" above the countdown number */
+#look-center { position: fixed; left: 0; right: var(--mini-w); top: 14vh; z-index: 80; display: none;
+  text-align: center; pointer-events: none; font-size: 5vh; font-weight: 800; color: #fff;
+  text-shadow: 0 0 24px rgba(0,0,0,.9), 0 3px 0 #000; }
+#look-center.show { display: block; }
 
 #abort { position: fixed; left: 12px; bottom: 12px; z-index: 85; display: none; font-size: 16px; font-weight: 800;
   padding: 10px 16px; border-radius: 10px; border: 2px solid #ff5a5a; background: #3a1a1a; color: #fff; cursor: pointer; }
 #abort:hover { background: #5a2020; }
 body.sim #abort { display: block; }
 
-/* Gaze badge: bottom-right, above the setup toolbar; in the driving view it sits at the bottom
-   (the minimap panel is on the right, the abort button bottom-left). Visible in both. */
-#gaze-badge { position: fixed; right: 12px; bottom: 152px; z-index: 95; max-width: 340px;
+/* Gaze badge: only while driving (GO to the end: body.driving), at the bottom of the driving view
+   (the minimap panel is on the right, the abort button bottom-left). Hidden in setup, the countdown and after the end. */
+#gaze-badge { position: fixed; right: 12px; bottom: 152px; z-index: 95; max-width: 340px; display: none;
   padding: 8px 12px; border-radius: 10px; border: 2px solid #8a8f9c; background: rgba(12,14,18,.85);
   pointer-events: none; }
 body.sim #gaze-badge { bottom: 12px; right: calc(var(--mini-w) + 12px); }
+body.driving #gaze-badge { display: block; }
 #gaze-badge .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;
   background: #8a8f9c; vertical-align: -1px; }
 #gaze-badge b { font-size: 17px; }

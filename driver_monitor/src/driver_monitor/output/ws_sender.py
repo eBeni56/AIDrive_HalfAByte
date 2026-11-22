@@ -5,10 +5,13 @@ thread delivers them. If the server is not running yet or the connection drops, 
 reconnecting every `reconnect_s`; meanwhile messages are dropped (the consumer wants the LIVE state, not a
 backlog). If sending is slower than the camera, the oldest queued messages are dropped.
 Each WebSocket text message is one complete driver_state JSON object (same format as --json / JSON Lines).
+From the server only {"type": "recenter_gaze"} is used (at every simulation start: measure the straight-ahead
+look again; see `recenter_requests()`); everything else it sends is read and dropped.
 """
 
 from __future__ import annotations
 
+import json
 import queue
 import threading
 
@@ -26,6 +29,7 @@ class WebSocketSender:
         self.cfg = cfg
         self._queue: queue.Queue[str] = queue.Queue(maxsize=QUEUE_SIZE)
         self._events: queue.Queue[str] = queue.Queue()
+        self._recenter = threading.Event()  # the server asked for a recenter (recenter_gaze)
         self._stop = threading.Event()
         self.connected = False
         self.sent = 0
@@ -58,6 +62,13 @@ class WebSocketSender:
             except queue.Empty:
                 return out
 
+    def recenter_requests(self) -> bool:
+        """True once after the server sent recenter_gaze (a simulation is starting)."""
+        if not self._recenter.is_set():
+            return False
+        self._recenter.clear()
+        return True
+
     def close(self) -> None:
         self._stop.set()
         self._thread.join(timeout=3.0)
@@ -87,7 +98,8 @@ class WebSocketSender:
         self._events.put(f"WebSocket: connected to {self.cfg.url}, streaming driver_state messages")
         try:
             while not self._stop.is_set():
-                _discard_incoming(ws)
+                if _read_incoming(ws):
+                    self._recenter.set()
                 try:
                     msg = self._queue.get(timeout=0.25)
                 except queue.Empty:
@@ -100,15 +112,25 @@ class WebSocketSender:
             self.connected = False
 
 
-def _discard_incoming(ws: ClientConnection) -> None:
-    """Read and drop whatever the server sent (the server may send to every client, e.g. gaze_update).
+def _read_incoming(ws: ClientConnection) -> bool:
+    """Read whatever the server sent; True if a recenter_gaze was among it, everything else is dropped.
     Unread messages fill the client's receive buffer; it then stops reading the socket, the server's pongs
     are missed and the connection closes with "keepalive ping timeout"."""
+    recenter = False
     while True:
         try:
-            ws.recv(timeout=0)
+            raw = ws.recv(timeout=0)
         except TimeoutError:
-            return
+            return recenter
+        recenter = recenter or _is_recenter(raw)
+
+
+def _is_recenter(raw: str | bytes) -> bool:
+    try:
+        msg = json.loads(raw)
+    except ValueError:
+        return False
+    return isinstance(msg, dict) and msg.get("type") == "recenter_gaze"
 
 
 def _short(e: Exception) -> str:

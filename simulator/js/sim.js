@@ -39,11 +39,12 @@ function stepObject(o, dt) {
 
 // ------------------------------ SIMULATION FLOW --------------------------------------
 // phases: "countdown" -> "driving" -> "done";  sim === null means we are in SETUP.
-// Nothing is sent before GO. Messages: simulation_started (at GO), simulation_tick (10 Hz),
-// simulation_ended.
+// Messages: simulation_countdown (at Start: the driver looks at the screen centre, the camera sets its
+// straight-ahead look), simulation_started (at GO), simulation_tick (10 Hz), simulation_ended.
 let sim = null;
 let rafId = 0, lastNow = 0;
 const bigEl = document.getElementById("countdown");
+const lookEl = document.getElementById("look-center");
 const doneEl = document.getElementById("done");
 const nowS = () => Date.now() / 1000;
 
@@ -53,6 +54,11 @@ function setBig(text, go) {
   bigEl.classList.toggle("go", !!go);
 }
 
+function setLookCenter(show) {
+  lookEl.textContent = COUNTDOWN_TEXT;
+  lookEl.classList.toggle("show", show);
+}
+
 function startSimulation() {
   if (sim || objects.size === 0) return;
   sim = { phase: "countdown", phaseT: 0, t: 0, objs: [...objects.values()].map(planBehavior),
@@ -60,6 +66,8 @@ function startSimulation() {
   document.body.classList.add("sim");
   resizeView();
   setBig(String(COUNTDOWN_S));
+  setLookCenter(true);
+  emit({ event: "simulation_countdown", timestamp: nowS() });   // the camera sets the straight-ahead now
   render();
   lastNow = performance.now();
   rafId = requestAnimationFrame(frame);
@@ -67,6 +75,8 @@ function startSimulation() {
 
 function beginDriving() {
   sim.phase = "driving"; sim.t = 0;
+  setLookCenter(false);
+  setGazeActive(true);                                         // gaze.js: badge + highlight from now on
   emit({ event: "simulation_started", timestamp: nowS() });
   sendTick();                                                  // first snapshot right at GO
   sim.tickTimer = setInterval(sendTick, 1000 / TICK_HZ);       // 10 Hz, decoupled from rendering
@@ -76,6 +86,7 @@ function endSimulation() {
   sim.phase = "done";                                          // world freezes: update() does nothing now
   clearInterval(sim.tickTimer);
   setBig("");
+  setGazeActive(false);                                        // no gaze shown after the end
   emit({ event: "simulation_ended", timestamp: nowS() });
   document.getElementById("done-info").textContent =
     `${sim.objs.length} object(s), ${sim.t.toFixed(1)} s of driving, ${sim.ticks} tick(s)`;
@@ -83,7 +94,7 @@ function endSimulation() {
 }
 
 // Back to SETUP. An abort while driving also ends the run on the backend
-// (during the countdown nothing was sent yet, so nothing needs closing).
+// (during the countdown no run was started yet, so nothing needs closing).
 function exitToSetup() {
   if (!sim) return;
   if (sim.phase === "driving") emit({ event: "simulation_ended", timestamp: nowS() });
@@ -91,6 +102,8 @@ function exitToSetup() {
   cancelAnimationFrame(rafId);
   sim = null;
   setBig("");
+  setLookCenter(false);
+  setGazeActive(false);
   doneEl.classList.remove("show");
   document.body.classList.remove("sim");
   layout();                                                    // setup objects were never touched
@@ -98,7 +111,7 @@ function exitToSetup() {
 
 function update(dt) {
   sim.phaseT += dt;
-  if (sim.phase === "countdown") {                             // frozen world, 3..2..1
+  if (sim.phase === "countdown") {                             // frozen world, look at the centre, 5..1
     setBig(String(Math.max(1, COUNTDOWN_S - Math.floor(sim.phaseT))));
     if (sim.phaseT >= COUNTDOWN_S) beginDriving();
     return;

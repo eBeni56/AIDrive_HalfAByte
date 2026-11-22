@@ -76,6 +76,16 @@ class DriverMonitor:
         self.calibrator.start(t)
         self._reset_face()
 
+    def recenter(self, t: float) -> bool:
+        """Measure the straight-ahead look again (the server asks at every simulation start: "look at the centre
+        of the screen"); the eye baselines are kept. Reported as CALIBRATING meanwhile. Ignored (False) while the
+        first calibration is still running."""
+        if self.calibrator.active or self.profile is None:
+            return False
+        self.calibrator.start_recenter(t, self.profile)
+        self._reset_face()
+        return True
+
     def _reset_face(self) -> None:
         for part in (self.head_proc, self.eye_proc, self.gaze_est, self.eyes_closed, self.distraction):
             part.reset()
@@ -124,11 +134,14 @@ class DriverMonitor:
 
         calibrating = self.calibrator.active
         if calibrating:
+            recentering = self.calibrator.recentering
             done = self.calibrator.update(face, t)
             if done is not None:
                 self.profile = done
                 self._reset_face()
                 calibrating = False
+                if recentering:
+                    self.notes.append(self.calibrator.message)
         profile = None if calibrating else self.profile
 
         head = self.head_proc.update(face, profile, t)

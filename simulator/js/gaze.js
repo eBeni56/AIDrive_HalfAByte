@@ -1,17 +1,26 @@
-// Gaze display: receives gaze_update from the server, shows a status badge (setup + driving view)
-// and highlights the looked-at region on the first-person view. Display only; sends nothing.
+// Gaze display: receives gaze_update from the server, shows a status badge and highlights the looked-at
+// region on the first-person view. Display only; sends nothing. Only while driving (GO to the end, see
+// setGazeActive): the straight-ahead look is set during the countdown, so before it there is nothing to show.
 
 // Latest state. `t` = performance.now() when the last valid message arrived (0 = never).
-const gaze = { status: null, region: null, t: 0 };
+const gaze = { status: null, region: null, t: 0, active: false };
 const badgeEl = document.getElementById("gaze-badge");
 let badgeKey = "";   // last rendered badge content, to skip needless DOM writes
 
 function gazeFresh(now) { return gaze.t > 0 && (now === undefined ? performance.now() : now) - gaze.t <= GAZE_TIMEOUT_MS; }
 
-// Parse one incoming frame. Ignores anything invalid; never throws.
+// sim.js: true at GO, false at the end / abort. Forgets the last gaze, so an old one is never shown.
+function setGazeActive(on) {
+  gaze.active = on;
+  gaze.status = null; gaze.region = null; gaze.t = 0;
+  document.body.classList.toggle("driving", on);
+  updateGazeBadge();
+}
+
+// Parse one incoming frame. Ignores anything invalid (and everything outside the driving phase); never throws.
 function handleGazeMessage(data) {
   try {
-    if (typeof data !== "string") return;
+    if (!gaze.active || typeof data !== "string") return;
     const m = JSON.parse(data);
     if (!m || typeof m !== "object" || Array.isArray(m) || m.event !== "gaze_update") return;
     if (typeof m.status !== "string" || !Object.hasOwn(GAZE_STATUS_STYLE, m.status)) return;
@@ -23,7 +32,7 @@ function handleGazeMessage(data) {
   } catch (e) { /* malformed message: ignore */ }
 }
 
-// Badge in the DOM: shown in setup and in the driving view.
+// Badge in the DOM: shown only while driving (body.driving, style.css).
 function updateGazeBadge() {
   if (!badgeEl) return;
   let style, text;
@@ -40,7 +49,7 @@ function updateGazeBadge() {
   badgeEl.firstElementChild.style.background = style.color;
   badgeEl.children[1].textContent = text;
 }
-setInterval(updateGazeBadge, GAZE_CHECK_MS);   // the 1.5 s expiry also works on the setup screen
+setInterval(updateGazeBadge, GAZE_CHECK_MS);   // the 1.5 s expiry ("No gaze data") while driving
 updateGazeBadge();
 
 // ------------------------------ REGION GEOMETRY --------------------------------------
@@ -81,7 +90,7 @@ function gazeLabel(c, text, x, y, W, color) {
 // Last layer of the frame: the highlight for the current gaze region (driving view only).
 function drawGaze(c, W, H) {
   const now = performance.now();
-  if (!gazeFresh(now) || gaze.status !== "ok") return;
+  if (!gaze.active || !gazeFresh(now) || gaze.status !== "ok") return;
   const label = "LOOKING: " + GAZE_REGION_LABEL[gaze.region];
   const pulse = Math.sin(now / 250);
   c.save();

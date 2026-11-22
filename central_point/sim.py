@@ -1,6 +1,7 @@
 """Input from the SIMULATOR: parse its messages and keep the current state in `world`.
 
 Messages:
+  simulation_countdown {event, timestamp}   at Start: "look at the centre" (the camera sets its straight-ahead)
   simulation_started  {event, timestamp}
   simulation_tick     {event, timestamp, objects: [{object_id, type, x_px, y_px}, ...]}   10 Hz
   simulation_ended    {event, timestamp}
@@ -61,7 +62,11 @@ def handle(msg):
     event = msg.get("event")
     _number(msg, "timestamp")   # required in every message (the server itself uses its own clock)
 
-    if event == "simulation_started":
+    if event == "simulation_countdown":
+        world.objects = {}
+        log.info("simulation countdown: the driver looks at the screen centre")
+
+    elif event == "simulation_started":
         world.objects = {}
         log.info("simulation started")
 

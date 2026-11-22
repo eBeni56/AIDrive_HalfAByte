@@ -35,7 +35,7 @@ project needs and nothing else: **where the driver looks** (`gaze.zone`), **whet
 | `quality` | `fps`, `camera_fps`, `latency_ms` | processing speed |
 | | `face_detected`, `faces_in_view` | is a face in the image (the largest one is the driver) |
 | | `issues` | `CALIBRATING`, `HEAD_TURNED_TOO_FAR`, `FACE_TOO_SMALL`, `FACE_PARTIALLY_OUT_OF_FRAME`, `LOW_LIGHT`, `LOW_FPS` |
-| `calibration` | `status` | `CALIBRATING` (the first ~9 s: look straight ahead, then close the eyes), `DONE`, `DEFAULTS` (`--no-calibration`) |
+| `calibration` | `status` | `CALIBRATING` (the first ~9 s: look straight ahead, then close the eyes; and ~4 s at every simulation start: look at the screen centre), `DONE`, `DEFAULTS` (`--no-calibration`) |
 | | `phase`, `progress`, `message` | while calibrating: `OPEN_EYES` / `CLOSED_EYES`, 0..1, the instruction |
 | `eyes` | `state` | `OPEN`, `CLOSED`, `UNKNOWN` (no face / head turned too far) |
 | | `state_for_s`, `openness`, `source` | how long in this state, 0..1, `BOTH` / `LEFT_ONLY` / `RIGHT_ONLY` (one eye when the head is turned) |

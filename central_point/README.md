@@ -34,13 +34,16 @@ warning and ignored (the connection stays open).
 **From the simulator** (messages with an `event`; every one has a numeric `timestamp`):
 
 ```json
+{"event": "simulation_countdown", "timestamp": 1763639995.0}
 {"event": "simulation_started", "timestamp": 1763640000.0}
 {"event": "simulation_tick", "timestamp": 1763640000.1,
  "objects": [{"object_id": "car1", "type": "car", "x_px": 40, "y_px": 120}]}
 {"event": "simulation_ended", "timestamp": 1763640060.0}
 ```
 
-`simulation_tick` comes 10 times per second with every object on the map. `type` is `car`, `truck`, `bicycle`,
+`simulation_countdown` comes at Start, ~5 s before `simulation_started` (GO): the driver looks at the screen
+centre, the server asks the driver monitor for the new straight-ahead look (`recenter_gaze`, below). No run is
+started yet. `simulation_tick` comes 10 times per second with every object on the map. `type` is `car`, `truck`, `bicycle`,
 `motorcycle` or `pedestrian`; `x_px` is + right of the ego car, `y_px` + ahead (1 m = 31.43 px).
 
 **From the driver monitor** (`"type": "driver_state"`, ~30 per second; full reference in
@@ -77,7 +80,8 @@ chat. `role` is `user` or `assistant`; anything else is dropped with a warning.
 ## What it sends
 
 **`gaze_update`**, `GAZE_HZ` (10) times per second, to every client except the driver monitor, safety_ai and chat
-clients (the simulator sends nothing before GO, so it can't be recognised earlier; it gets the message anyway):
+clients, **only during a run** (from `simulation_started` to `simulation_ended`). Before GO the straight-ahead
+look is not set yet (the countdown sets it), and after the end the drive is over, so nothing is sent then:
 
 ```json
 {"event": "gaze_update", "timestamp": 1763640012.345, "status": "ok", "region": "mirror_left"}
@@ -103,7 +107,13 @@ clients (the simulator sends nothing before GO, so it can't be recognised earlie
 * the attention messages (below) and every valid `chat_message`;
 * every warning (not its repeats), tip and debrief as a chat line: `{"type": "chat_message", "role": "assistant", "text": ...}`.
 
-**To safety_ai only:** every `warning` (also the repeats) and every `coach_request` (below).
+**To the driver monitor only:** at `simulation_countdown`, `{"type": "recenter_gaze", "timestamp": ...}`: it
+measures the straight-ahead look (the 0,0 of every gaze angle) again, reported as `calibration.status:
+CALIBRATING` meanwhile (no `gaze_update` is sent yet: the run starts at GO).
+
+**To safety_ai only:** every `warning` (also the repeats) and every `coach_request` (below), only during a run
+(from `simulation_started` to `simulation_ended`): nothing before GO, and nothing that could interrupt the
+end-of-drive analysis.
 
 ## Attention: did the driver look in time?
 
@@ -151,7 +161,7 @@ constants at the top of `attention.py`.
 | `looking_away` | `DISTRACTED` starts; again every 5 s | `Stop looking down! Watch the road!` / `Eyes back on the road!` | 1 |
 
 Phone and looking away stay quiet while the eyes-closed line is being repeated. No driver warnings when the driver
-monitor has sent nothing for 1 s.
+monitor has sent nothing for 1 s, and none outside a run (before GO or after `simulation_ended`).
 
 ```json
 {"type": "warning", "timestamp": 1763640012.3, "t_s": 3.58, "kind": "road_user", "category": "right", "priority": 2,

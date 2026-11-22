@@ -79,6 +79,11 @@ def run(cfg: AppConfig, opts: RunOptions) -> int:
                 sender.send(result.state)
                 for msg in sender.events():
                     reporter.line(msg)
+                if sender.recenter_requests():  # a simulation is starting: the driver looks at the screen centre
+                    if monitor.recenter(t):
+                        reporter.line("Simulation starting: measuring the straight-ahead look again (screen centre).")
+                    else:
+                        reporter.line("Simulation starting: recenter skipped, the calibration is still running.")
             to_stream = stream if stream is not None and stream.wants_frame(t) else None
             if not opts.show_window and to_stream is None:
                 continue

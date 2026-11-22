@@ -9,8 +9,10 @@ clocks; the work is done by the modules:
   coach.py      when to ask the LLM for a tip or a debrief       (coach_request)
 
 Who sends / gets what:
-  simulator       -> simulation_started / _tick / _ended          <- gaze_update (GAZE_HZ)
-  driver monitor  -> driver_state (~30/s)
+  simulator       -> simulation_countdown / _started / _tick /    <- gaze_update (GAZE_HZ, only during a run:
+                     _ended                                          simulation_started to _ended)
+  driver monitor  -> driver_state (~30/s)                         <- recenter_gaze (at simulation_countdown: set
+                                                                     the straight-ahead look again)
   dashboard       -> {"type": "hello", "role": "dashboard"}       <- gaze_update, driver_state (DASHBOARD_HZ),
                                                                      simulation_started / _ended, attention_event /
                                                                      _summary, chat_message (every warning, tip and
@@ -107,6 +109,10 @@ def route(raw, now=None):
 
 def simulator_event(event, raw, now):
     region = current_region(now)
+    if event == "simulation_countdown":   # the driver looks at the screen centre: the camera's new 0,0
+        text = json.dumps({"type": "recenter_gaze", "timestamp": time.time()})
+        log.info("SENT to the camera %s", text)
+        return [("camera", text)]
     if event == "simulation_started":
         run.start(now)
         coaching.start(now)
@@ -240,8 +246,9 @@ async def tick_loop():
         await asyncio.sleep(1.0 / TICK_HZ)
         now = time.monotonic()
         out = attention_out(watch.update(now, current_region(now)), now)
-        for w in warner.update(now, run.t_s(now)):
-            out += warning_out(w, now)
+        if run.running:   # driver warnings only during a run: none before GO, none over the end-of-drive analysis
+            for w in warner.update(now, run.t_s(now)):
+                out += warning_out(w, now)
         calm = not warner.driver_problems(now) and not watch.has_running_timer()
         req = coaching.update(now, calm, run)
         if req:
@@ -262,12 +269,15 @@ async def send_dashboard_loop():
 
 
 async def send_gaze_loop():
-    """gaze_update GAZE_HZ times per second to the simulator and the dashboard (the simulator sends nothing
-    before GO, so it can't be recognised earlier; it gets the message anyway). Also counts the run's gaze
-    time shares. Only changes are logged at INFO."""
+    """gaze_update GAZE_HZ times per second to the simulator and the dashboard, only during a run (GO to
+    simulation_ended): before it the straight-ahead look is not set yet (the countdown sets it), after it the
+    drive is over. Also counts the run's gaze time shares. Only changes are logged at INFO."""
     last = None
     while True:
         await asyncio.sleep(1.0 / GAZE_HZ)
+        if not run.running:
+            last = None
+            continue
         now = time.monotonic()
         status, region = decide_gaze(now)
         run.on_gaze(now, status, region)

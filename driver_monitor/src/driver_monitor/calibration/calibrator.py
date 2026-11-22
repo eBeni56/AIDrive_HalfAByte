@@ -6,12 +6,17 @@ Phase 2 CLOSED_EYES (~3 s): "close your eyes" -> closed-eye EAR and blink score.
                            clearly different from the open ones (driver didn't close them), fall back
                            to default ratios for that eye.
 The open phase restarts if the face was missing too often or the head moved too much.
+
+Recenter (start_recenter, at every simulation start): one open phase of recenter_s, the first recenter_settle_s
+ignored -> only the straight-ahead look is measured again (neutral head pose, iris and gaze blendshapes); the
+eye baselines of the profile are kept. No restart (the simulation starts anyway): if the face was missing too
+often or the head moved too much, the previous straight-ahead is kept.
 """
 
 from __future__ import annotations
 
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -39,6 +44,7 @@ class _Phase:
     name: CalibrationPhase
     started_t: float
     duration_s: float
+    settle_s: float = 0.0  # samples are collected only after this (reaction time)
     frames: int = 0
     samples: list[_Sample] = field(default_factory=list)  # frames with a face (closed phase: after settling)
     face_frames: int = 0
@@ -49,6 +55,7 @@ class Calibrator:
         self.cfg = cfg
         self._phase: _Phase | None = None
         self._open: list[_Sample] = []  # the accepted open phase
+        self._base: DriverProfile | None = None  # while recentering: the profile whose straight-ahead is replaced
         self.message = ""
 
     @property
@@ -56,18 +63,31 @@ class Calibrator:
         return self._phase is not None
 
     @property
+    def recentering(self) -> bool:
+        return self._base is not None
+
+    @property
     def phase(self) -> CalibrationPhase | None:
         return self._phase.name if self._phase else None
 
     def start(self, t: float) -> None:
         self._open = []
+        self._base = None
         self._phase = _Phase(CalibrationPhase.OPEN_EYES, t, self.cfg.open_phase_s)
         self.message = "Look straight ahead (at the road/screen centre), eyes normally open"
+
+    def start_recenter(self, t: float, base: DriverProfile) -> None:
+        """Measure only the straight-ahead look again; `base` keeps everything else."""
+        self._base = base
+        self._phase = _Phase(CalibrationPhase.OPEN_EYES, t, self.cfg.recenter_s, self.cfg.recenter_settle_s)
+        self.message = "Look at the centre of the screen"
 
     def progress(self, t: float) -> float:
         """How much of the calibration is done, 0..1."""
         if self._phase is None:
             return 1.0
+        if self._base is not None:
+            return float(np.clip((t - self._phase.started_t) / self.cfg.recenter_s, 0.0, 1.0))
         total = self.cfg.open_phase_s + (self.cfg.closed_phase_s if self.cfg.use_closed_phase else 0.0)
         done = (t - self._phase.started_t) + (
             self.cfg.open_phase_s if self._phase.name is CalibrationPhase.CLOSED_EYES else 0.0
@@ -82,15 +102,47 @@ class Calibrator:
         ph.frames += 1
         if face is not None and face.yaw is not None and face.pitch is not None and face.roll is not None:
             ph.face_frames += 1
-            settled = ph.name is CalibrationPhase.OPEN_EYES or t - ph.started_t >= self.cfg.closed_phase_settle_s
-            if settled:
+            if t - ph.started_t >= ph.settle_s:
                 ph.samples.append(_Sample(face.yaw, face.pitch, face.roll, face))
 
         if t - ph.started_t < ph.duration_s:
             return None
+        if self._base is not None:
+            return self._finish_recenter(ph)
         if ph.name is CalibrationPhase.OPEN_EYES:
             return self._finish_open(ph, t)
         return self._finish(ph.samples)
+
+    def _finish_recenter(self, ph: _Phase) -> DriverProfile:
+        base, self._base, self._phase = self._base, None, None
+        assert base is not None
+        valid = ph.face_frames / max(ph.frames, 1)
+        reason = None
+        if valid < self.cfg.min_valid_fraction or len(ph.samples) < MIN_OPEN_SAMPLES:
+            reason = f"face visible only {valid:.0%} of the time"
+        elif max(statistics.pstdev(s.yaw for s in ph.samples),
+                 statistics.pstdev(s.pitch for s in ph.samples)) > self.cfg.max_head_std_deg:
+            reason = "head moved too much"
+        if reason is not None:
+            self.message = f"Straight-ahead NOT updated ({reason}): the previous one is kept"
+            return base
+        o, med = ph.samples, statistics.median
+
+        def eye(b: EyeBaseline, eyes: list[EyeFeatures]) -> EyeBaseline:
+            return replace(b, iris_h0=med(e.iris_h for e in eyes), iris_v0=med(e.iris_v for e in eyes))
+
+        self.message = "Straight-ahead updated (look at the centre of the screen)"
+        return replace(
+            base,
+            neutral_yaw=med(s.yaw for s in o),
+            neutral_pitch=med(s.pitch for s in o),
+            neutral_roll=med(s.roll for s in o),
+            left=eye(base.left, [s.face.left for s in o]),
+            right=eye(base.right, [s.face.right for s in o]),
+            blend_h0=med(s.face.blend_h for s in o),
+            blend_v0=med(s.face.blend_v for s in o),
+            notes=list(base.notes),
+        )
 
     def _finish_open(self, ph: _Phase, t: float) -> DriverProfile | None:
         valid = ph.face_frames / max(ph.frames, 1)
@@ -105,7 +157,7 @@ class Calibrator:
         self._open = ph.samples
         if not self.cfg.use_closed_phase:
             return self._finish([])
-        self._phase = _Phase(CalibrationPhase.CLOSED_EYES, t, self.cfg.closed_phase_s)
+        self._phase = _Phase(CalibrationPhase.CLOSED_EYES, t, self.cfg.closed_phase_s, self.cfg.closed_phase_settle_s)
         self.message = "Now CLOSE your eyes (keep facing forward)"
         return None
 

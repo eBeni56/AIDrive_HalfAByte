@@ -25,7 +25,9 @@ Watches the driver through a webcam (MediaPipe, on the CPU) and reports, for eve
   stream for the dashboard: `http://localhost:8090/stream.mjpg`. A frame is only encoded while a page watches.
 * **The terminal**: a status line and one line whenever a detection starts, changes or ends.
 
-It **receives** nothing: what the server sends back is read and dropped.
+It **receives** only `{"type": "recenter_gaze"}` from the server, at every simulation start: it then measures
+the straight-ahead look again (see [Calibration](#calibration-the-first-9-s)). Everything else the server sends
+is read and dropped.
 
 A shortened `driver_state` while looking down at a phone:
 
@@ -70,6 +72,13 @@ Keys in the preview window: `q` / `Esc` quit · `c` calibrate again · `j` print
 It starts again if the face was missing too often or the head moved too much. Look at the screen centre: if you
 look elsewhere, every zone shifts. Without calibration (`--no-calibration`) the camera axis counts as straight
 ahead and average eyes are used. The phone detection needs no calibration and works from the first frame.
+
+**At every simulation start** (the simulator's "Look at the centre of the screen" countdown, 5 s) the server
+sends `recenter_gaze`, and only the straight-ahead look is measured again: 4 s (`calibration.recenter_s`), the
+first 1 s ignored while the driver turns to the centre (`recenter_settle_s`). The eye baselines stay. Meanwhile
+`calibration.status` is `CALIBRATING` (phase `OPEN_EYES`, message "Look at the centre of the screen"). It is
+not repeated: if the face was missing too often or the head moved too much, the previous straight-ahead is kept
+(the terminal says which). While the first calibration is still running the request is skipped.
 
 ## How it works
 
