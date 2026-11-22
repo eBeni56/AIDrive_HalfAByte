@@ -77,8 +77,8 @@ class DriverMonitor:
         self._reset_face()
 
     def recenter(self, t: float) -> bool:
-        """Measure the straight-ahead look again (the server asks at every simulation start: "look at the centre
-        of the screen"); the eye baselines are kept. Reported as CALIBRATING meanwhile. Ignored (False) while the
+        """Measure the straight-ahead look again (the server asks when the simulator calibrates: "look at the
+        number"); the eye baselines are kept. Reported as CALIBRATING meanwhile. Ignored (False) while the
         first calibration is still running."""
         if self.calibrator.active or self.profile is None:
             return False

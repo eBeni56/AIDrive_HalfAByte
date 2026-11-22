@@ -19,6 +19,7 @@
 <div id="hint">Drag an icon onto the road. Drag placed objects to move. Right-click / double-click to remove.</div>
 
 <div id="toolbar">
+  <button id="calibrate" title="Look at the number for a few seconds: the camera sets your straight-ahead look">Calibrate</button>
   <button id="clear">Clear all</button>
   <div id="speed-box"><span>Speed of the simulation</span><button id="speed">1x</button></div>
   <button id="start" disabled>&#9654; Start<br>simulation</button>
@@ -29,6 +30,10 @@
 <canvas id="minimap"></canvas>
 <div id="countdown"></div>
 <div id="look-center"></div>
+<div id="press">Press <kbd>SPACE</kbd> to start</div>
+
+<!-- Calibration (when the page loads, and the Calibrate button): blocks the setup screen meanwhile -->
+<div id="calib"><div id="calib-skip">Esc: skip</div></div>
 <button id="abort">&#10005; Abort (Esc)</button>
 <div id="done"><div class="box">
   <div class="title">Simulation complete</div>

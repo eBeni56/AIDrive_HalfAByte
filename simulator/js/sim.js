@@ -37,16 +37,15 @@ function stepObject(o, dt) {
   }
 }
 
-// ------------------------------ SIMULATION FLOW --------------------------------------
-// phases: "countdown" -> "driving" -> "done";  sim === null means we are in SETUP.
-// Messages: simulation_countdown (at Start: the driver looks at the screen centre, the camera sets its
-// straight-ahead look), simulation_started (at GO), simulation_tick (10 Hz), simulation_ended.
-let sim = null;
-let rafId = 0, lastNow = 0;
+// ------------------------------ CALIBRATION ------------------------------------------
+// When the page loads (and with the Calibrate button): "look at the number" with a countdown over the setup
+// screen; the number is where "straight ahead" is while driving (the middle of the driving view). It waits for
+// the server connection, then sends calibration_started: the server asks the driver monitor to measure the
+// straight-ahead look (recenter_gaze). Esc skips it. A simulation start needs no calibration.
 const bigEl = document.getElementById("countdown");
 const lookEl = document.getElementById("look-center");
-const doneEl = document.getElementById("done");
-const nowS = () => Date.now() / 1000;
+const calibEl = document.getElementById("calib");
+let calib = null;   // null = not calibrating; { started: performance.now() or null while waiting, timer }
 
 function setBig(text, go) {
   if (bigEl.textContent !== text) bigEl.textContent = text;
@@ -54,20 +53,56 @@ function setBig(text, go) {
   bigEl.classList.toggle("go", !!go);
 }
 
-function setLookCenter(show) {
-  lookEl.textContent = COUNTDOWN_TEXT;
-  lookEl.classList.toggle("show", show);
+function startCalibration() {
+  if (sim || calib) return;
+  // the driving view's width, so the number is where the road ahead will be
+  document.documentElement.style.setProperty("--mini-w", Math.round(window.innerWidth * MINIMAP.widthFrac) + "px");
+  calib = { started: null, timer: setInterval(calibrationStep, 100) };
+  calibEl.classList.add("show");
+  lookEl.classList.add("show");
+  calibrationStep();
 }
 
+function calibrationStep() {
+  if (!calib) return;
+  if (calib.started === null) {                                // wait for the server
+    if (!(ws && ws.readyState === WebSocket.OPEN)) { lookEl.textContent = "Connecting to the server…"; setBig(""); return; }
+    emit({ event: "calibration_started", timestamp: nowS() });
+    calib.started = performance.now();
+  }
+  const t = (performance.now() - calib.started) / 1000;
+  if (t >= CALIBRATION_S) { endCalibration(); return; }
+  lookEl.textContent = CALIBRATION_TEXT;
+  setBig(String(Math.max(1, CALIBRATION_S - Math.floor(t))));
+}
+
+function endCalibration() {
+  if (!calib) return;
+  clearInterval(calib.timer);
+  calib = null;
+  calibEl.classList.remove("show");
+  lookEl.classList.remove("show");
+  setBig("");
+}
+
+// ------------------------------ SIMULATION FLOW --------------------------------------
+// phases: "ready" ("Press SPACE to start", frozen) -> "driving" -> "done";  sim === null means SETUP.
+// Messages: simulation_started (at SPACE = GO), simulation_tick (10 Hz), simulation_ended (the end, or an
+// abort while driving), simulation_reset (leaving the run for the setup screen: a new simulation is being
+// prepared, so the voice stops reading the analysis).
+let sim = null;
+let rafId = 0, lastNow = 0;
+const pressEl = document.getElementById("press");
+const doneEl = document.getElementById("done");
+const nowS = () => Date.now() / 1000;
+
 function startSimulation() {
-  if (sim || objects.size === 0) return;
-  sim = { phase: "countdown", phaseT: 0, t: 0, objs: [...objects.values()].map(planBehavior),
-          ticks: 0, tickTimer: 0 };
+  if (sim || calib || objects.size === 0) return;
+  document.activeElement?.blur();                              // SPACE must not "click" a button again
+  sim = { phase: "ready", t: 0, objs: [...objects.values()].map(planBehavior), ticks: 0, tickTimer: 0 };
   document.body.classList.add("sim");
   resizeView();
-  setBig(String(COUNTDOWN_S));
-  setLookCenter(true);
-  emit({ event: "simulation_countdown", timestamp: nowS() });   // the camera sets the straight-ahead now
+  pressEl.classList.add("show");
   render();
   lastNow = performance.now();
   rafId = requestAnimationFrame(frame);
@@ -75,7 +110,7 @@ function startSimulation() {
 
 function beginDriving() {
   sim.phase = "driving"; sim.t = 0;
-  setLookCenter(false);
+  pressEl.classList.remove("show");
   setGazeActive(true);                                         // gaze.js: the highlight from now on
   emit({ event: "simulation_started", timestamp: nowS() });
   sendTick();                                                  // first snapshot right at GO
@@ -93,16 +128,18 @@ function endSimulation() {
   doneEl.classList.add("show");
 }
 
-// Back to SETUP. An abort while driving also ends the run on the backend
-// (during the countdown no run was started yet, so nothing needs closing).
+// Back to SETUP. An abort while driving also ends the run on the backend; leaving a run that was started
+// (abort, or "Back to setup" after the end) sends simulation_reset: the voice stops reading the analysis.
+// From "ready" nothing was started, so nothing is sent.
 function exitToSetup() {
   if (!sim) return;
   if (sim.phase === "driving") emit({ event: "simulation_ended", timestamp: nowS() });
+  if (sim.phase !== "ready") emit({ event: "simulation_reset", timestamp: nowS() });
   clearInterval(sim.tickTimer);
   cancelAnimationFrame(rafId);
   sim = null;
   setBig("");
-  setLookCenter(false);
+  pressEl.classList.remove("show");
   setGazeActive(false);
   doneEl.classList.remove("show");
   document.body.classList.remove("sim");
@@ -110,13 +147,7 @@ function exitToSetup() {
 }
 
 function update(dt) {
-  sim.phaseT += dt;
-  if (sim.phase === "countdown") {                             // frozen world, look at the centre, 5..1
-    setBig(String(Math.max(1, COUNTDOWN_S - Math.floor(sim.phaseT))));
-    if (sim.phaseT >= COUNTDOWN_S) beginDriving();
-    return;
-  }
-  if (sim.phase !== "driving") return;
+  if (sim.phase !== "driving") return;                         // "ready": frozen until SPACE; "done": frozen
   sim.t += dt;
   setBig(sim.t < 1 ? "GO" : "", true);
   for (const o of sim.objs) stepObject(o, dt);
@@ -150,12 +181,22 @@ function frame(now) {
 }
 
 document.getElementById("start").addEventListener("click", startSimulation);
+document.getElementById("calibrate").addEventListener("click", startCalibration);
 document.getElementById("abort").addEventListener("click", exitToSetup);
 document.getElementById("back").addEventListener("click", exitToSetup);
-document.addEventListener("keydown", e => { if (e.key === "Escape" && sim) exitToSetup(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    if (calib) endCalibration();                               // skip the calibration
+    else if (sim) exitToSetup();
+  } else if (e.code === "Space" && sim && sim.phase === "ready") {
+    e.preventDefault();
+    beginDriving();                                            // GO
+  }
+});
 window.addEventListener("resize", () => { if (sim) { resizeView(); render(); } });
 
 window.addEventListener("resize", layout);
 layout();
 connect();
 updateStartButton();
+startCalibration();                                            // once when the page loads (Calibrate: again)

@@ -48,11 +48,11 @@ const BEHAVIOR = {
 const SPEED_STEPS = [1, 2, 0.25, 0.5];   // "Speed" button cycle (setup only); multiplies object speeds only
 const SPEED_JITTER = 0.10;        // each object gets speed * (1 +- up to 10%), re-rolled every run
 const PED_GRASS_OFFSET_M = 1.5;   // pedestrian start/end point: this far outside the road edge
-// Before GO: "Look at the centre of the screen" and a countdown (world frozen). Meanwhile the camera sets
-// the driver's straight-ahead look (the 0,0 of every gaze angle; it needs ~4 s: recenter_s in the driver
-// monitor's config), so keep this longer than that.
-const COUNTDOWN_S = 5;
-const COUNTDOWN_TEXT = "Look at the centre of the screen";
+// Calibration, when the page loads (and with the Calibrate button): "look at the number" and a countdown;
+// meanwhile the camera sets the driver's straight-ahead look (the 0,0 of every gaze angle; it needs ~4 s:
+// recenter_s in the driver monitor's config), so keep this longer than that.
+const CALIBRATION_S = 5;
+const CALIBRATION_TEXT = "Calibration: look at the number";
 // The run ends at once when every object has driven off the minimap, and in any case after MAX_RUN_S of driving
 // (objects that never leave it: parked in the centre lane, a pedestrian who has crossed). Not shown anywhere.
 const MAX_RUN_S = 40;

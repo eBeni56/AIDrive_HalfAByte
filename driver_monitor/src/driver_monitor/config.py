@@ -52,9 +52,9 @@ class CalibrationConfig(_Section):
     closed_phase_settle_s: float = 0.8  # ignore the first moments of the closed phase (reaction time)
     min_valid_fraction: float = 0.7  # of the open phase with a face, else restart
     max_head_std_deg: float = 6.0  # head must be roughly still during the open phase
-    # Recenter (at every simulation start, asked by the server: "look at the centre of the screen"): only the
-    # straight-ahead look (the 0,0 of every angle) is measured again; the eye baselines are kept. Keep it shorter
-    # than the simulator's countdown (5 s).
+    # Recenter (asked by the server when the simulator page loads or its Calibrate button is pressed: "look at the
+    # number"): only the straight-ahead look (the 0,0 of every angle) is measured again; the eye baselines are
+    # kept. Keep it shorter than the simulator's calibration countdown (5 s).
     recenter_s: float = 4.0
     recenter_settle_s: float = 1.0  # ignore the first moments (the driver turns to the centre)
     min_ear_margin: float = 0.04  # open - closed EAR must exceed this, else default ratio

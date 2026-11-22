@@ -7,7 +7,7 @@ One worker thread owns the model and one audio stream that stays open. say(text,
   - a line still waiting after max_age_s is dropped: an old warning is worse than none;
   - the same text is never waiting twice.
 drop_below(priority) removes the waiting lines below a priority (a tip once a warning came in); drop_above(priority)
-the ones above it (the warnings at the end of a run).
+the ones above it (the warnings at the end of a run); stop() cuts everything (a new simulation is prepared).
 The audio of every finished line is cached, so a repeated warning starts at once.
 """
 import logging
@@ -69,6 +69,14 @@ class Voice:
     def drop_below(self, priority):
         with self.cond:
             self.waiting = [w for w in self.waiting if w.priority >= priority]
+
+    def stop(self):
+        """Stop talking at once (a new simulation is being prepared): the line being spoken is cut, nothing
+        waiting is spoken."""
+        with self.cond:
+            self.waiting = []
+            if self.current is not None:
+                self.interrupt = True
 
     def drop_above(self, priority):
         """Remove the waiting lines above a priority (the warnings once the run is over); the line being spoken
@@ -148,7 +156,7 @@ class Voice:
             if self.interrupt:
                 self.stream.abort()              # drop what is still buffered, then reopen
                 self.stream.start()
-                log.info("interrupted by a more urgent line")
+                log.info("interrupted (a more urgent line, or stopped)")
                 return False
             self.stream.write(audio[i:i + step].reshape(-1, 1))
         return True

@@ -5,7 +5,7 @@ thread delivers them. If the server is not running yet or the connection drops, 
 reconnecting every `reconnect_s`; meanwhile messages are dropped (the consumer wants the LIVE state, not a
 backlog). If sending is slower than the camera, the oldest queued messages are dropped.
 Each WebSocket text message is one complete driver_state JSON object (same format as --json / JSON Lines).
-From the server only {"type": "recenter_gaze"} is used (at every simulation start: measure the straight-ahead
+From the server only {"type": "recenter_gaze"} is used (the simulator's calibration: measure the straight-ahead
 look again; see `recenter_requests()`); everything else it sends is read and dropped.
 """
 
@@ -63,7 +63,7 @@ class WebSocketSender:
                 return out
 
     def recenter_requests(self) -> bool:
-        """True once after the server sent recenter_gaze (a simulation is starting)."""
+        """True once after the server sent recenter_gaze (the simulator's calibration)."""
         if not self._recenter.is_set():
             return False
         self._recenter.clear()

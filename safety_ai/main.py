@@ -8,6 +8,8 @@ A tip is not spoken (and not sent back) when a warning came in while the LLM was
 compete with a hazard. simulation_started / _ended mark the run: at the end no warning is spoken any more (the
 waiting ones are dropped, later ones ignored), but the tips are finished: the one being spoken, the waiting
 ones and one the LLM is still writing (unless the debrief came first). Then the debrief, then silence.
+simulation_reset (back to the setup screen: a new simulation is prepared) stops the voice at once: also the
+debrief being read; one still being written is not spoken (its coach_result still goes to the dashboard's chat).
 Reconnects every RETRY_S when central_point is not running.
 
   python safety_ai/main.py [--hub ws://localhost:8765] [--voice female_1] [--mute] [--no-llm]
@@ -39,6 +41,7 @@ class SafetyAI:
         self.llm = llm
         self.last_warning_at = 0.0
         self.debrief_at = 0.0     # when the last debrief was handed to the voice
+        self.reset_at = 0.0       # when the simulator last went back to setup (simulation_reset)
         self.over = False         # True from simulation_ended until the next simulation_started
         self.tasks = set()        # running coach calls (asyncio keeps only weak references)
 
@@ -72,6 +75,10 @@ class SafetyAI:
             self.over = True
             self.voice.drop_above(COACH_PRIORITY)                    # no more warnings; the tips are finished
             log.info("run ended: no more warnings; the tips are finished, then only the debrief")
+        elif msg.get("event") == "simulation_reset":
+            self.reset_at = time.monotonic()
+            self.voice.stop()                                        # a new simulation: stop reading at once
+            log.info("simulation reset: voice stopped")
         elif msg.get("type") == "warning" and isinstance(msg.get("say"), str):
             if self.over:
                 return
@@ -97,7 +104,9 @@ class SafetyAI:
         if kind == "tip" and self.debrief_at > asked_at:   # never after the end-of-drive analysis
             log.info("tip %s dropped: the debrief is already being spoken (%s)", req_id, ans["say"])
             return
-        if kind == "tip" and not ans["speak"]:
+        if self.reset_at > asked_at:                        # back in setup meanwhile: shown, not spoken
+            log.info("%s %s not spoken: a new simulation is being prepared", kind, req_id)
+        elif kind == "tip" and not ans["speak"]:
             log.info("tip %s: the LLM found nothing worth saying", req_id)
         elif kind == "tip" and self.last_warning_at > asked_at:
             log.info("tip %s dropped: a warning came in meanwhile (%s)", req_id, ans["say"])

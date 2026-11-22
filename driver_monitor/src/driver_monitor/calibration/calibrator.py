@@ -7,9 +7,10 @@ Phase 2 CLOSED_EYES (~3 s): "close your eyes" -> closed-eye EAR and blink score.
                            to default ratios for that eye.
 The open phase restarts if the face was missing too often or the head moved too much.
 
-Recenter (start_recenter, at every simulation start): one open phase of recenter_s, the first recenter_settle_s
-ignored -> only the straight-ahead look is measured again (neutral head pose, iris and gaze blendshapes); the
-eye baselines of the profile are kept. No restart (the simulation starts anyway): if the face was missing too
+Recenter (start_recenter, the simulator's calibration when its page loads / Calibrate): one open phase of
+recenter_s, the first recenter_settle_s ignored -> only the straight-ahead look is measured again (neutral head
+pose, iris and gaze blendshapes); the eye baselines of the profile are kept. No restart (the simulator's
+countdown ends anyway): if the face was missing too
 often or the head moved too much, the previous straight-ahead is kept.
 """
 

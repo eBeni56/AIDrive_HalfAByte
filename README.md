@@ -41,25 +41,28 @@ Then:
 1. **Look straight ahead at the centre of the screen** until the first calibration is done (about 9 s: eyes
    open, then closed when asked). The dashboard says "Look straight ahead" meanwhile. It measures your open and
    closed eyes and a first straight-ahead look.
-2. In the simulator, drag objects onto the road and press **Start simulation**.
-3. **"Look at the centre of the screen"** and a 5-4-3-2-1 countdown (the world stands still). Meanwhile the
-   camera measures your straight-ahead look again: the 0,0 of every gaze zone, so it is right for this drive
-   even if you moved since the start. Where you look is shown (the simulator's highlight, the dashboard's
-   `CAM` lines) only from GO to the end of the drive; a blink does not hide it. The dashboard's camera image
-   runs all the time.
-4. **GO**: only now do the eye tracking of the drive, the warnings and the coach start. Look where the objects
-   are. The dashboard logs whether you looked in time; a miss, closed eyes, the phone or looking down is warned
-   at once (spoken and on the driver display). In a calm moment the coach may give a tip.
+2. **When the simulator page loads**: "Calibration: look at the number" and a 5-4-3-2-1 countdown over the
+   setup screen. Look at the number: it is where the road ahead is while driving. Meanwhile the camera
+   measures your straight-ahead look: the 0,0 of every gaze zone. Once per page load; the **Calibrate** button
+   in the setup menu does it again (e.g. after you moved your seat); Esc skips it.
+3. In the simulator, drag objects onto the road and press **Start simulation**: the driving view appears,
+   frozen, with **"Press SPACE to start"**. No calibration here.
+4. **SPACE = GO**: only now do the eye tracking of the drive, the warnings and the coach start. Look where the
+   objects are. The dashboard logs whether you looked in time; a miss, closed eyes, the phone or looking down
+   is warned at once (spoken and on the driver display). In a calm moment the coach may give a tip. Where you
+   look is shown (the simulator's highlight, the dashboard's `CAM` lines) only from GO to the end of the drive;
+   a blink does not hide it. The dashboard's camera image runs all the time.
 5. The simulation ends when every object has driven off the minimap, and in any case after 40 s (an analysis
    needs at least 20 s). With it no new data is sent any more: no warnings are spoken (a tip already started is
    finished), the dashboard's log, chat and driver display keep the drive's data and stand still, and the AI
-   gets nothing new. About 2-4 s later the AI's analysis of the drive is spoken (about half a minute),
-   uninterrupted, and appears in the dashboard's chat. After that nothing changes until the next **Start
-   simulation**. Drive again: the next analysis compares the two.
+   gets nothing new. About 2-4 s later the AI's analysis of the drive is read out (about half a minute) and
+   appears in the dashboard's chat.
+6. **Back to setup** (a new simulation) stops the voice at once, also in the middle of the analysis (it stays
+   in the chat). Drive again: the next analysis compares the two.
 
 Another camera: `set DM_ARGS=--camera 0` before `start.bat` (`--list-cameras` shows them). To calibrate the
 eyes again, restart `start.bat` (or run the driver monitor by hand with its window and press `c`, see below);
-the straight-ahead look is measured again at every simulation start anyway.
+the straight-ahead look alone: the simulator's **Calibrate** button.
 
 ## The AI: an LLM driving instructor (Azure, gpt-4.1-mini)
 
@@ -123,7 +126,7 @@ everything else works: the warnings are still spoken, there are just no tips and
                     driver_state                           gaze_update
   driver_monitor ─────────────────►  central_point  ──────────────────────────►  simulator
      (webcam)    ◄─────────────────      :8765      ◄──────────────────────────  (browser)
-        │           recenter_gaze    ▲    │   ▲  │    simulation_countdown / _started / _tick / _ended
+        │           recenter_gaze    ▲    │   ▲  │    calibration_started, simulation_started / _tick / _ended / _reset
         │                      hello │    │   │  │ warning, coach_request
         │                            │    │   │  ▼
         │                            │    │   safety_ai (this PC) ──► speakers;  ──► Azure gpt-4.1-mini (tips, analysis)
@@ -136,11 +139,11 @@ everything else works: the warnings are still spoken, there are just no tips and
 | From → to | Message | When |
 |---|---|---|
 | driver monitor → server | `driver_state`: eyes, gaze zone and angles, detections (`EYES_CLOSED`, `DISTRACTED`, `PHONE_USE`) | every camera frame |
-| simulator → server | `simulation_countdown` (at Start: "look at the centre"), `simulation_started` (at GO), `simulation_tick` (every object's position), `simulation_ended` | a run; ticks 10/s |
-| server → driver monitor | `recenter_gaze`: measure the straight-ahead look again | at `simulation_countdown` |
+| simulator → server | `calibration_started` (page loaded / Calibrate: "look at the number"), `simulation_started` (at GO), `simulation_tick` (every object's position), `simulation_ended`, `simulation_reset` (back to setup after a run) | a run; ticks 10/s |
+| server → driver monitor | `recenter_gaze`: measure the straight-ahead look again | at `calibration_started` |
 | server → simulator, dashboard | `gaze_update`: where the driver looks, as one of the 8 regions (or `away`) and a status | 10/s, only during a run (GO to the end) |
 | server → dashboard | the latest `driver_state`, `attention_event` / `attention_summary`, the run's start / end, `chat_message` | as they happen; `driver_state` only during a run |
-| server → safety_ai | `simulation_started` / `simulation_ended` (at the end: no more warnings, the tips are finished, then only the analysis) | a run |
+| server → safety_ai | `simulation_started` / `simulation_ended` (at the end: no more warnings, the tips are finished, then only the analysis), `simulation_reset` (stop talking at once) | a run |
 | dashboard → server | `hello` (role `dashboard`) | once per connection |
 | server → safety_ai | `warning` (the line to speak, a priority), `coach_request` (the facts, for a tip or the end-of-drive analysis) | only between `simulation_started` and `simulation_ended`: a miss / driver problem; a pattern; at the end the analysis |
 | safety_ai → server | `hello` (role `safety_ai`), `coach_result` (the LLM's tip / analysis; shown in the dashboard's chat) | per request |

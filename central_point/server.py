@@ -9,16 +9,16 @@ clocks; the work is done by the modules:
   coach.py      when to ask the LLM for a tip or a debrief       (coach_request)
 
 Who sends / gets what:
-  simulator       -> simulation_countdown / _started / _tick /    <- gaze_update (GAZE_HZ, only during a run:
-                     _ended                                          simulation_started to _ended)
-  driver monitor  -> driver_state (~30/s)                         <- recenter_gaze (at simulation_countdown: set
+  simulator       -> calibration_started, simulation_started /    <- gaze_update (GAZE_HZ, only during a run:
+                     _tick / _ended / _reset                         simulation_started to _ended)
+  driver monitor  -> driver_state (~30/s)                         <- recenter_gaze (at calibration_started: set
                                                                      the straight-ahead look again)
   dashboard       -> {"type": "hello", "role": "dashboard"}       <- gaze_update, driver_state (DASHBOARD_HZ),
                                                                      simulation_started / _ended, attention_event /
                                                                      _summary, chat_message (every warning, tip and
                                                                      debrief, plus any client's chat_message)
-  safety_ai       -> {"type": "hello", "role": "safety_ai"},      <- simulation_started / _ended, warning (speaks
-                     coach_result (the LLM's tip / debrief)          it), coach_request (asks the LLM); its
+  safety_ai       -> {"type": "hello", "role": "safety_ai"},      <- simulation_started / _ended / _reset, warning
+                     coach_result (the LLM's tip / debrief)          (speaks it), coach_request (asks the LLM); its
                                                                      coach_result goes to the dashboard
 Outside a run (before GO, after simulation_ended) nothing new is sent but the end-of-drive debrief (and a tip that
 was already being written): no gaze_update, no driver_state, no warnings, no new tips.
@@ -114,10 +114,12 @@ def route(raw, now=None):
 def simulator_event(event, raw, now):
     global run_started_raw
     region = current_region(now)
-    if event == "simulation_countdown":   # the driver looks at the screen centre: the camera's new 0,0
+    if event == "calibration_started":   # the driver looks at the screen centre: the camera's new 0,0
         text = json.dumps({"type": "recenter_gaze", "timestamp": time.time()})
         log.info("SENT to the camera %s", text)
         return [("camera", text)]
+    if event == "simulation_reset":      # a new simulation is being prepared: the voice stops talking
+        return [("safety_ai", raw)]
     if event == "simulation_started":
         run.start(now)
         coaching.start(now)

@@ -65,11 +65,26 @@ body.sim #scene, body.sim #toolbar, body.sim #hint { display: none; }
   text-shadow: 0 0 40px rgba(0,0,0,.9), 0 8px 0 #000; }
 #countdown.show { display: flex; }
 #countdown.go { color: #4cff7a; }
-/* "Look at the centre of the screen" above the countdown number */
+/* Calibration: the text above the countdown number. Both sit in the middle of where the driving view will be
+   (left of the minimap: --mini-w is set already in setup), i.e. where "straight ahead" is while driving. */
 #look-center { position: fixed; left: 0; right: var(--mini-w); top: 14vh; z-index: 80; display: none;
   text-align: center; pointer-events: none; font-size: 5vh; font-weight: 800; color: #fff;
   text-shadow: 0 0 24px rgba(0,0,0,.9), 0 3px 0 #000; }
 #look-center.show { display: block; }
+#calib { position: fixed; inset: 0; z-index: 75; display: none; background: rgba(8,10,14,.72); }
+#calib.show { display: block; }
+#calib-skip { position: fixed; left: 12px; bottom: 12px; font-size: 15px; color: #cfd6e4; }
+#calibrate { height: 116px; width: 110px; border-radius: 12px; border: 2px solid #4da3ff;
+  background: #182a40; color: #fff; font-size: 18px; font-weight: 700; cursor: pointer; }
+#calibrate:hover { background: #20395a; }
+
+/* "Press SPACE to start": the driving view waits, frozen */
+#press { position: fixed; inset: 0 var(--mini-w) 0 0; z-index: 80; display: none; align-items: center;
+  justify-content: center; pointer-events: none; font-size: 7vh; font-weight: 900; color: #fff;
+  text-shadow: 0 0 30px rgba(0,0,0,.95), 0 4px 0 #000; }
+#press.show { display: flex; }
+#press kbd { font: inherit; margin: 0 .35em; padding: 0 .35em; border: .08em solid #fff; border-radius: .2em;
+  background: rgba(0,0,0,.45); color: #4cff7a; }
 
 #abort { position: fixed; left: 12px; bottom: 12px; z-index: 85; display: none; font-size: 16px; font-weight: 800;
   padding: 10px 16px; border-radius: 10px; border: 2px solid #ff5a5a; background: #3a1a1a; color: #fff; cursor: pointer; }

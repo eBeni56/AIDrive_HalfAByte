@@ -34,16 +34,19 @@ warning and ignored (the connection stays open).
 **From the simulator** (messages with an `event`; every one has a numeric `timestamp`):
 
 ```json
-{"event": "simulation_countdown", "timestamp": 1763639995.0}
+{"event": "calibration_started", "timestamp": 1763639900.0}
 {"event": "simulation_started", "timestamp": 1763640000.0}
 {"event": "simulation_tick", "timestamp": 1763640000.1,
  "objects": [{"object_id": "car1", "type": "car", "x_px": 40, "y_px": 120}]}
 {"event": "simulation_ended", "timestamp": 1763640060.0}
+{"event": "simulation_reset", "timestamp": 1763640075.0}
 ```
 
-`simulation_countdown` comes at Start, ~5 s before `simulation_started` (GO): the driver looks at the screen
-centre, the server asks the driver monitor for the new straight-ahead look (`recenter_gaze`, below). No run is
-started yet. `simulation_tick` comes 10 times per second with every object on the map. `type` is `car`, `truck`, `bicycle`,
+`calibration_started` comes when the simulator page loads (and with its Calibrate button), not at a simulation
+start: the driver looks at the screen centre, the server asks the driver monitor for the new straight-ahead
+look (`recenter_gaze`, below). `simulation_reset` comes when the simulator goes back to setup after a run (a new
+simulation is prepared): it is passed to safety_ai, which stops talking at once. Neither starts or ends a run.
+`simulation_tick` comes 10 times per second with every object on the map. `type` is `car`, `truck`, `bicycle`,
 `motorcycle` or `pedestrian`; `x_px` is + right of the ego car, `y_px` + ahead (1 m = 31.43 px).
 
 **From the driver monitor** (`"type": "driver_state"`, ~30 per second; full reference in
@@ -111,14 +114,15 @@ broken:
 * the attention messages (below) and every valid `chat_message`;
 * every warning (not its repeats), tip and debrief as a chat line: `{"type": "chat_message", "role": "assistant", "text": ...}`.
 
-**To the driver monitor only:** at `simulation_countdown`, `{"type": "recenter_gaze", "timestamp": ...}`: it
+**To the driver monitor only:** at `calibration_started`, `{"type": "recenter_gaze", "timestamp": ...}`: it
 measures the straight-ahead look (the 0,0 of every gaze angle) again, reported as `calibration.status:
-CALIBRATING` meanwhile (no `gaze_update` is sent yet: the run starts at GO).
+CALIBRATING` meanwhile (no `gaze_update` is sent then: that is only during a run).
 
 **To safety_ai only:** every `warning` (also the repeats) and every `coach_request` (below), only during a run
 (from `simulation_started` to `simulation_ended`): nothing before GO, and nothing that could interrupt the
 end-of-drive analysis. Also `simulation_started` / `simulation_ended` as received: at the end safety_ai speaks no
-more warnings, finishes the tips it already has, then speaks only the debrief (requested right after). A tip
+more warnings, finishes the tips it already has, then speaks only the debrief (requested right after). And
+`simulation_reset`: it stops talking at once (also in the middle of the debrief). A tip
 asked for during the run whose `coach_result` comes back after the end is still shown in the chat.
 
 **Outside a run** (before GO, after `simulation_ended`) the server sends nothing new but the end-of-drive debrief,

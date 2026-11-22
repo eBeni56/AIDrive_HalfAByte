@@ -7,7 +7,9 @@ can't reach). It connects to [central_point](../central_point/README.md) and
   driver did not look at in time) and sends the line to say, only during a run (GO to the end). At the end of a
   run (`simulation_ended`, also from central_point) no warning is spoken any more, but the tips are finished
   (the one being spoken, the waiting ones, one the LLM is still writing, unless the analysis is already being
-  spoken); then the end-of-drive analysis, and after it nothing until the next run; A more urgent line interrupts a less urgent one; a
+  spoken); then the end-of-drive analysis, and after it nothing until the next run. When the simulator goes
+  back to setup (`simulation_reset`: a new simulation is prepared) the voice stops at once, also in the middle
+  of the analysis; an analysis still being written is then not spoken (it still appears in the chat); A more urgent line interrupts a less urgent one; a
   warning that could not be spoken within 2.5 s is dropped (an old warning is worse than none);
 * **writes and speaks the coaching**: when central_point sees a pattern (for example two cars on the right missed)
   it sends a `coach_request` with what happened; the LLM finds the point, writes a short tip and it is spoken. At

@@ -1,10 +1,12 @@
 """Input from the SIMULATOR: parse its messages and keep the current state in `world`.
 
 Messages:
-  simulation_countdown {event, timestamp}   at Start: "look at the centre" (the camera sets its straight-ahead)
+  calibration_started {event, timestamp}    the page loaded / Calibrate: "look at the number" (the camera sets its
+                                            straight-ahead)
   simulation_started  {event, timestamp}
   simulation_tick     {event, timestamp, objects: [{object_id, type, x_px, y_px}, ...]}   10 Hz
   simulation_ended    {event, timestamp}
+  simulation_reset    {event, timestamp}    back to the setup screen after a run: a new simulation is prepared
 """
 import logging
 from dataclasses import dataclass
@@ -62,9 +64,12 @@ def handle(msg):
     event = msg.get("event")
     _number(msg, "timestamp")   # required in every message (the server itself uses its own clock)
 
-    if event == "simulation_countdown":
+    if event == "calibration_started":
+        log.info("calibration: the driver looks at the screen centre")
+
+    elif event == "simulation_reset":
         world.objects = {}
-        log.info("simulation countdown: the driver looks at the screen centre")
+        log.info("simulation reset: back to the setup screen")
 
     elif event == "simulation_started":
         world.objects = {}
